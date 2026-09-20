@@ -15,6 +15,9 @@
   --warning: #946b20;
   --warning-soft: #fff7df;
   --overlay: rgb(15 32 48 / 35%);
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --duration-fast: 120ms;
+  --duration-base: 220ms;
   color-scheme: light;
   font-synthesis: none;
 }
@@ -66,4 +69,16 @@
 body {
   margin: 0;
   padding-bottom: 4.5rem;
+}
+
+/* Movement explains a state change; without it the interface must still work. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

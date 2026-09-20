@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CalendarDays, EyeOff, MapPin, Trash2, X } from 'lucide-react'
 import { motion } from 'motion/react'
+import { fadeTransition, sheetSpring } from '../lib/motion'
 import type { ScheduleLesson } from '../api/schedule'
 import { localDataStore } from '../domain/localDataStore'
 import { Button } from './ui/Button'
@@ -110,7 +111,7 @@ export function LessonDetails({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.18 }}
+      transition={fadeTransition}
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
@@ -121,7 +122,7 @@ export function LessonDetails({
         initial={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.97, y: 8 }}
         animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1, y: 0 }}
         exit={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.97, y: 8 }}
-        transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+        transition={sheetSpring}
         drag={isMobile ? 'y' : false}
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={0.18}
