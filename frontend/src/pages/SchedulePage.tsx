@@ -17,6 +17,7 @@ type SchedulePageProps = {
   filter: LessonFilter
   showHidden: boolean
   onDateChange: (isoDate: string) => void
+  onVisibleDateChange: (isoDate: string) => void
   onOpenLesson: (lesson: ScheduleLesson) => void
   onOpenSettings: () => void
 }
@@ -31,6 +32,7 @@ export function SchedulePage({
   filter,
   showHidden,
   onDateChange,
+  onVisibleDateChange,
   onOpenLesson,
   onOpenSettings,
 }: SchedulePageProps) {
@@ -73,6 +75,7 @@ export function SchedulePage({
             showHidden={showHidden}
             isLoading={weeks.isPending}
             onDateChange={onDateChange}
+            onVisibleDateChange={onVisibleDateChange}
             onOpenLesson={onOpenLesson}
           />
         </div>

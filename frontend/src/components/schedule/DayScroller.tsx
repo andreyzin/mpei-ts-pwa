@@ -26,6 +26,8 @@ type DayScrollerProps = {
   showHidden: boolean
   isLoading: boolean
   onDateChange: (isoDate: string) => void
+  /** Fires while the finger is still moving, for controls that track the view. */
+  onVisibleDateChange: (isoDate: string) => void
   onOpenLesson: (lesson: ScheduleLesson) => void
 }
 
@@ -45,6 +47,7 @@ export function DayScroller({
   showHidden,
   isLoading,
   onDateChange,
+  onVisibleDateChange,
   onOpenLesson,
 }: DayScrollerProps) {
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -64,6 +67,7 @@ export function DayScroller({
   const centerIndexRef = useRef(initialIndex)
   const [centerIndex, setCenterIndex] = useState(initialIndex)
   const positionedRef = useRef(false)
+  const programmaticRef = useRef(false)
   const settleTimerRef = useRef<number>(undefined)
   const frameRef = useRef<number>(undefined)
 
@@ -106,6 +110,7 @@ export function DayScroller({
     // the scroller lands a whole week away.
     if (shifted || !positionedRef.current) {
       positionedRef.current = true
+      programmaticRef.current = true
       scroller.scrollLeft = index * step
       moveCenterTo(index)
       return
@@ -115,6 +120,7 @@ export function DayScroller({
     const distance = Math.abs(index - centerIndexRef.current)
     if (distance === 0) return
     moveCenterTo(index)
+    programmaticRef.current = true
     scroller.scrollTo({
       left: index * step,
       behavior: prefersReducedMotion || distance > SMOOTH_DISTANCE ? 'auto' : 'smooth',
@@ -136,15 +142,23 @@ export function DayScroller({
     frameRef.current = requestAnimationFrame(() => {
       frameRef.current = undefined
       const index = Math.min(WINDOW_LENGTH - 1, Math.max(0, Math.round(scroller.scrollLeft / step)))
-      if (index !== centerIndexRef.current) moveCenterTo(index)
+      if (index !== centerIndexRef.current) {
+        moveCenterTo(index)
+        // A scroll the app started already knows its destination; reporting the
+        // days it passes would drag the week strip backwards and forwards.
+        if (!programmaticRef.current) {
+          onVisibleDateChange(addDays(windowStartRef.current, index))
+        }
+      }
 
       window.clearTimeout(settleTimerRef.current)
       settleTimerRef.current = window.setTimeout(() => {
+        programmaticRef.current = false
         const settled = addDays(windowStartRef.current, centerIndexRef.current)
         if (settled !== date) onDateChange(settled)
       }, SETTLE_DELAY)
     })
-  }, [date, moveCenterTo, onDateChange, step, width])
+  }, [date, moveCenterTo, onDateChange, onVisibleDateChange, step, width])
 
   return (
     <div

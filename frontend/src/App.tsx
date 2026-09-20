@@ -35,6 +35,17 @@ export default function App() {
   const prefersReducedMotion = useReducedMotion()
   const isMobile = useIsMobile()
 
+  // The strip follows the scroller frame by frame; the committed date drives
+  // the URL and the loaded weeks, and only moves once scrolling has stopped.
+  // Tying the live value to the date it was reported against lets a commit from
+  // anywhere else supersede it without an effect to clear it.
+  const [live, setLive] = useState({ anchor: selectedDate, date: selectedDate })
+  const visibleDate = live.anchor === selectedDate ? live.date : selectedDate
+  const showVisibleDate = useCallback(
+    (date: string) => setLive({ anchor: selectedDate, date }),
+    [selectedDate],
+  )
+
   const today = todayIso()
   const mondayIso = mondayOf(selectedDate)
   const filter = useMemo(
@@ -158,8 +169,8 @@ export default function App() {
               <DateSelector
                 groupName={group?.name ?? null}
                 rangeLabel={rangeLabel}
-                selectedDate={selectedDate}
-                mondayIso={mondayIso}
+                selectedDate={visibleDate}
+                mondayIso={mondayOf(visibleDate)}
                 todayIso={today}
                 isMobile={isMobile}
                 showExcluded={showExcludedSubjects}
@@ -180,6 +191,7 @@ export default function App() {
                 filter={filter}
                 showHidden={showExcludedSubjects}
                 onDateChange={setSelectedDate}
+                onVisibleDateChange={showVisibleDate}
                 onOpenLesson={setSelectedLesson}
                 onOpenSettings={() => setScreen('settings')}
               />
