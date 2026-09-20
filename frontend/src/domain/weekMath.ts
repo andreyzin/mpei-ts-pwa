@@ -36,3 +36,23 @@ export function mondayOf(isoDate: string): string {
 export function weekDates(mondayIso: string): string[] {
   return Array.from({ length: 7 }, (_, index) => addDays(mondayIso, index))
 }
+
+export function startOfMonth(isoDate: string): string {
+  const date = fromIsoDate(isoDate)
+  return toIsoDate(new Date(date.getFullYear(), date.getMonth(), 1, 12))
+}
+
+export function addMonths(isoDate: string, months: number): string {
+  const date = fromIsoDate(isoDate)
+  return toIsoDate(new Date(date.getFullYear(), date.getMonth() + months, 1, 12))
+}
+
+export function isSameMonth(a: string, b: string): boolean {
+  return a.slice(0, 7) === b.slice(0, 7)
+}
+
+/** Always six Monday-first weeks, so the grid keeps its height between months. */
+export function monthGrid(monthIso: string): string[] {
+  const first = mondayOf(startOfMonth(monthIso))
+  return Array.from({ length: 42 }, (_, index) => addDays(first, index))
+}

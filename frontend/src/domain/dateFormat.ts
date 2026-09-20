@@ -7,6 +7,7 @@ const dayTitle = new Intl.DateTimeFormat('ru-RU', {
 })
 const shortDate = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' })
 const weekdayShort = new Intl.DateTimeFormat('ru-RU', { weekday: 'short' })
+const monthName = new Intl.DateTimeFormat('ru-RU', { month: 'long' })
 
 /** Trailing dots in Russian abbreviations read as noise inside compact controls. */
 const withoutTrailingDot = (value: string) => value.replace(/\.$/, '')
@@ -29,4 +30,10 @@ export function formatDayNumber(isoDate: string): string {
 
 export function formatDateRange(fromIso: string, toIso: string): string {
   return `${formatShortDate(fromIso)} — ${formatShortDate(toIso)}`
+}
+
+/** "сентябрь 2026" — Intl's own year format appends a "г." that reads as clutter. */
+export function formatMonthTitle(isoDate: string): string {
+  const date = fromIsoDate(isoDate)
+  return `${monthName.format(date)} ${date.getFullYear()}`
 }
