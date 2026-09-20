@@ -18,8 +18,7 @@ import { SchedulePage } from './pages/SchedulePage'
 import { HighlightsPage } from './pages/HighlightsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { InstallPwaButton } from './components/InstallPwaButton'
-
-const MOBILE_QUERY = '(max-width: 700px)'
+import { useIsMobile } from './hooks/useIsMobile'
 
 export default function App() {
   const [group, setGroup] = useState<ScheduleTarget | null>(null)
@@ -27,7 +26,6 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(
     () => readScheduleUrl(window.location.search).date ?? todayIso(),
   )
-  const [isMobile, setIsMobile] = useState(() => matchMedia(MOBILE_QUERY).matches)
   const [excludedSubjects, setExcludedSubjects] = useState<string[]>([])
   const [excludedSubjectRooms, setExcludedSubjectRooms] = useState<SubjectRoomExclusion[]>([])
   const [showExcludedSubjects, setShowExcludedSubjects] = useState(false)
@@ -35,6 +33,7 @@ export default function App() {
   const [selectedLesson, setSelectedLesson] = useState<ScheduleLesson | null>(null)
   const urlInitialized = useRef(false)
   const prefersReducedMotion = useReducedMotion()
+  const isMobile = useIsMobile()
 
   const today = todayIso()
   const mondayIso = mondayOf(selectedDate)
@@ -73,13 +72,6 @@ export default function App() {
       removeEventListener('online', onlineHandler)
       removeEventListener('offline', offlineHandler)
     }
-  }, [])
-
-  useEffect(() => {
-    const media = matchMedia(MOBILE_QUERY)
-    const handler = () => setIsMobile(media.matches)
-    media.addEventListener('change', handler)
-    return () => media.removeEventListener('change', handler)
   }, [])
 
   // Skip the first run so a shared link is not rewritten before preferences load.
