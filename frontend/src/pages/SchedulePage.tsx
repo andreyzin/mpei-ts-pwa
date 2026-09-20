@@ -4,7 +4,7 @@ import type { ScheduleTarget } from '../domain/models'
 import type { ScheduleWeeks } from '../hooks/useScheduleWeeks'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
-import { DayTrack } from '../components/schedule/DayTrack'
+import { DayScroller } from '../components/schedule/DayScroller'
 import { LessonsList } from '../components/schedule/LessonsList'
 
 type SchedulePageProps = {
@@ -66,8 +66,9 @@ export function SchedulePage({
       )}
       {isMobile ? (
         <div className="mt-5">
-          <DayTrack
+          <DayScroller
             date={selectedDate}
+            mondayIso={mondayIso}
             dayAt={weeks.dayAt}
             filter={filter}
             showHidden={showHidden}
