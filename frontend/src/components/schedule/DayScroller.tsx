@@ -94,18 +94,17 @@ export function DayScroller({
     const scroller = scrollerRef.current
     if (!scroller || step === 0) return
 
-    // The window moved, so hold the same day under the viewport.
-    const shift = pendingShiftRef.current
-    if (shift !== 0) {
-      pendingShiftRef.current = 0
-      scroller.scrollLeft -= shift * step
-      moveCenterTo(centerIndexRef.current - shift)
-    }
-
     const index = diffDays(windowStartRef.current, date)
     if (index < 0 || index >= WINDOW_LENGTH) return
 
-    if (!positionedRef.current) {
+    const shifted = pendingShiftRef.current !== 0
+    pendingShiftRef.current = 0
+
+    // Position absolutely rather than by a delta. Reading scrollLeft forces
+    // layout, and layout over the replaced panels makes the browser re-snap to
+    // the day that was visible, so a relative correction is applied twice and
+    // the scroller lands a whole week away.
+    if (shifted || !positionedRef.current) {
       positionedRef.current = true
       scroller.scrollLeft = index * step
       moveCenterTo(index)
