@@ -92,7 +92,7 @@ export function DayScroller({
 
   useLayoutEffect(() => {
     const scroller = scrollerRef.current
-    if (!scroller || step === 0) return
+    if (!scroller || width === 0) return
 
     const index = diffDays(windowStartRef.current, date)
     if (index < 0 || index >= WINDOW_LENGTH) return
@@ -119,7 +119,7 @@ export function DayScroller({
       left: index * step,
       behavior: prefersReducedMotion || distance > SMOOTH_DISTANCE ? 'auto' : 'smooth',
     })
-  }, [date, moveCenterTo, prefersReducedMotion, step, windowStart])
+  }, [date, moveCenterTo, prefersReducedMotion, step, width, windowStart])
 
   useEffect(
     () => () => {
@@ -131,7 +131,7 @@ export function DayScroller({
 
   const handleScroll = useCallback(() => {
     const scroller = scrollerRef.current
-    if (!scroller || step === 0 || frameRef.current) return
+    if (!scroller || width === 0 || frameRef.current) return
 
     frameRef.current = requestAnimationFrame(() => {
       frameRef.current = undefined
@@ -144,7 +144,7 @@ export function DayScroller({
         if (settled !== date) onDateChange(settled)
       }, SETTLE_DELAY)
     })
-  }, [date, moveCenterTo, onDateChange, step])
+  }, [date, moveCenterTo, onDateChange, step, width])
 
   return (
     <div
