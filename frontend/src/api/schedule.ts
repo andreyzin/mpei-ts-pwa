@@ -14,10 +14,16 @@ export type ScheduleLesson = {
   status: string
 }
 
+export type ScheduleDay = {
+  date: string
+  weekday: number
+  lessons: ScheduleLesson[]
+}
+
 export type ScheduleResponse = {
   subject: EntityRef & { type: string }
   period: { from: string; to: string; timezone: string }
-  days: { date: string; weekday: number; lessons: ScheduleLesson[] }[]
+  days: ScheduleDay[]
   meta: { cached: boolean; stale: boolean; fetched_at: string }
 }
 
