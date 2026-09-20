@@ -4,6 +4,8 @@ import { CalendarDays, Clock3 } from 'lucide-react'
 import { useSchedule } from '../hooks/useSchedule'
 import { localDataStore } from '../domain/localDataStore'
 import type { LessonNote, ScheduleTarget, SubjectRoomExclusion } from '../domain/models'
+import { isLessonHidden } from '../domain/lessonVisibility'
+import { addDays, todayIso } from '../domain/weekMath'
 import { LessonDetails } from './LessonDetails'
 import type { ScheduleLesson } from '../api/schedule'
 import { LessonCard } from './schedule/LessonCard'
@@ -15,32 +17,19 @@ type Props = {
   onOpenSchedule: () => void
 }
 
-function isLessonHidden(
-  lesson: ScheduleLesson,
-  excludedSubjects: string[],
-  excludedSubjectRooms: SubjectRoomExclusion[],
-) {
-  return (
-    excludedSubjects.includes(lesson.subject) ||
-    (lesson.room
-      ? excludedSubjectRooms.some(
-          (item) => item.subjectId === lesson.subject && item.roomId === lesson.room?.id,
-        )
-      : false)
-  )
-}
-
 export function Highlights({
   group,
   excludedSubjects,
   excludedSubjectRooms,
   onOpenSchedule,
 }: Props) {
-  const today = new Date().toISOString().slice(0, 10)
-  const futureDate = new Date()
-  futureDate.setDate(futureDate.getDate() + 31)
-  const futureUntil = futureDate.toISOString().slice(0, 10)
+  const today = todayIso()
+  const futureUntil = addDays(today, 31)
   const schedule = useSchedule(group, today, futureUntil)
+  const filter = useMemo(
+    () => ({ excludedSubjects, excludedSubjectRooms }),
+    [excludedSubjects, excludedSubjectRooms],
+  )
   const [notes, setNotes] = useState<LessonNote[]>([])
   const [showPast, setShowPast] = useState(false)
   const [selected, setSelected] = useState<ScheduleLesson | null>(null)
@@ -50,9 +39,9 @@ export function Highlights({
   const lessons = useMemo(
     () =>
       (schedule.data?.days.find((day) => day.date === today)?.lessons ?? []).filter(
-        (lesson) => !isLessonHidden(lesson, excludedSubjects, excludedSubjectRooms),
+        (lesson) => !isLessonHidden(lesson, filter),
       ),
-    [schedule.data, today, excludedSubjects, excludedSubjectRooms],
+    [schedule.data, today, filter],
   )
   const toMinutes = (value: string) => {
     const [hours, minutes] = value.split(':').map(Number)
@@ -67,10 +56,10 @@ export function Highlights({
     () =>
       schedule.data?.days.flatMap((day) =>
         day.lessons
-          .filter((lesson) => !isLessonHidden(lesson, excludedSubjects, excludedSubjectRooms))
+          .filter((lesson) => !isLessonHidden(lesson, filter))
           .map((lesson) => ({ lesson, date: day.date })),
       ) ?? [],
-    [schedule.data, excludedSubjects, excludedSubjectRooms],
+    [schedule.data, filter],
   )
   const futureNotes = notes.flatMap((note) => {
     const scheduled = futureLessons.find((item) => item.lesson.id === note.lessonId)
