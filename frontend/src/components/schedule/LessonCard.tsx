@@ -1,6 +1,8 @@
+import { motion } from 'motion/react'
 import type { ScheduleLesson } from '../../api/schedule'
 import { SubjectNotes } from '../SubjectNotes'
 import { LessonTypeBadge } from '../LessonTypeBadge'
+import { snapSpring } from '../../lib/motion'
 
 type LessonCardProps = {
   lesson: ScheduleLesson
@@ -12,10 +14,12 @@ export function LessonCard({ lesson, isHidden = false, onOpen }: LessonCardProps
   const open = () => onOpen(lesson)
 
   return (
-    <div
+    <motion.div
       className={`flex w-full cursor-pointer gap-3 rounded-md py-2 text-left transition-colors hover:bg-[var(--accent-soft)] ${isHidden ? 'bg-[var(--danger-soft)]' : ''}`}
       role="button"
       tabIndex={0}
+      whileTap={{ scale: 0.98 }}
+      transition={snapSpring}
       onClick={open}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -40,6 +44,6 @@ export function LessonCard({ lesson, isHidden = false, onOpen }: LessonCardProps
         </p>
         <SubjectNotes subjectId={lesson.subject} subjectName={lesson.subject} />
       </div>
-    </div>
+    </motion.div>
   )
 }
