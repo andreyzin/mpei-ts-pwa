@@ -8,6 +8,9 @@ import type {
 
 /** Async boundary deliberately mirrors a future authenticated server repository. */
 export interface LocalDataStore {
+  /** Readers subscribe so a write anywhere reaches every screen showing it. */
+  subscribe(listener: () => void): () => void
+  getVersion(): number
   getPreferences(): Promise<UserPreferences>
   setGroup(group: ScheduleTarget | null): Promise<void>
   setExcludedSubjects(subjectIds: string[]): Promise<void>
@@ -35,6 +38,18 @@ const empty: LocalDataSnapshot = {
 }
 
 export class LocalStorageDataStore implements LocalDataStore {
+  private listeners = new Set<() => void>()
+  private version = 0
+
+  subscribe = (listener: () => void) => {
+    this.listeners.add(listener)
+    return () => {
+      this.listeners.delete(listener)
+    }
+  }
+
+  getVersion = () => this.version
+
   private read(): LocalDataSnapshot {
     try {
       const raw = localStorage.getItem(KEY)
@@ -61,6 +76,8 @@ export class LocalStorageDataStore implements LocalDataStore {
 
   private write(snapshot: LocalDataSnapshot) {
     localStorage.setItem(KEY, JSON.stringify(snapshot))
+    this.version += 1
+    for (const listener of this.listeners) listener()
   }
 
   async getPreferences() {
