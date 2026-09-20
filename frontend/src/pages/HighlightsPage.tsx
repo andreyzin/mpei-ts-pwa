@@ -6,6 +6,7 @@ type Props = {
   excludedSubjects: string[]
   excludedSubjectRooms: SubjectRoomExclusion[]
   onOpenSchedule: () => void
+  onOpenSettings: () => void
 }
 
 export function HighlightsPage({ target, ...props }: Props) {

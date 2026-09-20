@@ -9,12 +9,15 @@ import { addDays, todayIso } from '../domain/weekMath'
 import { LessonDetails } from './LessonDetails'
 import type { ScheduleLesson } from '../api/schedule'
 import { LessonCard } from './schedule/LessonCard'
+import { Button } from './ui/Button'
+import { EmptyState } from './ui/EmptyState'
 
 type Props = {
   group: ScheduleTarget | null
   excludedSubjects: string[]
   excludedSubjectRooms: SubjectRoomExclusion[]
   onOpenSchedule: () => void
+  onOpenSettings: () => void
 }
 
 export function Highlights({
@@ -22,6 +25,7 @@ export function Highlights({
   excludedSubjects,
   excludedSubjectRooms,
   onOpenSchedule,
+  onOpenSettings,
 }: Props) {
   const today = todayIso()
   const futureUntil = addDays(today, 31)
@@ -82,27 +86,27 @@ export function Highlights({
         })}
       </p>
       {!group && (
-        <div className="mt-8 rounded-md border border-dashed border-[var(--line-strong)] p-8 text-center">
-          <h3>Группа не выбрана</h3>
-          <p>Выбери её в настройках.</p>
-        </div>
+        <EmptyState
+          className="mt-8"
+          title="Расписание не выбрано"
+          description="Выбери группу, преподавателя или аудиторию — выбор сохранится на этом устройстве."
+          action={
+            <Button variant="default" onClick={onOpenSettings}>
+              Открыть настройки
+            </Button>
+          }
+        />
       )}
-      {group && schedule.isPending && (
-        <div className="mt-8 rounded-md border border-dashed border-[var(--line-strong)] p-8 text-center">
-          <p>Загружаем пары…</p>
-        </div>
-      )}
+      {group && schedule.isPending && <EmptyState className="mt-8" title="Загружаем пары…" />}
       {group && schedule.isError && !schedule.data && (
-        <div className="mt-8 rounded-md border border-dashed border-[var(--line-strong)] p-8 text-center">
-          <h3>Нет соединения</h3>
-          <p>Сегодняшнее расписание не сохранено.</p>
-        </div>
+        <EmptyState
+          className="mt-8"
+          title="Нет соединения"
+          description="Сегодняшнее расписание не сохранено."
+        />
       )}
       {group && schedule.data && visible.length === 0 && !showPast && (
-        <div className="mt-8 rounded-md border border-dashed border-[var(--line-strong)] p-8 text-center">
-          <h3>На сегодня всё</h3>
-          <p>Будущих пар нет.</p>
-        </div>
+        <EmptyState className="mt-8" title="На сегодня всё" description="Будущих пар нет." />
       )}
       {group && (
         <div className="mt-6 grid gap-3">

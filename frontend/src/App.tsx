@@ -189,6 +189,7 @@ export default function App() {
                 showHidden={showExcludedSubjects}
                 onDateChange={setSelectedDate}
                 onOpenLesson={setSelectedLesson}
+                onOpenSettings={() => setScreen('settings')}
               />
             </>
           )}
@@ -198,6 +199,7 @@ export default function App() {
               excludedSubjects={excludedSubjects}
               excludedSubjectRooms={excludedSubjectRooms}
               onOpenSchedule={() => setScreen('schedule')}
+              onOpenSettings={() => setScreen('settings')}
             />
           )}
           {screen === 'settings' && (

@@ -2,6 +2,8 @@ import type { ScheduleLesson } from '../api/schedule'
 import type { LessonFilter } from '../domain/lessonVisibility'
 import type { ScheduleTarget } from '../domain/models'
 import type { ScheduleWeeks } from '../hooks/useScheduleWeeks'
+import { Button } from '../components/ui/Button'
+import { EmptyState } from '../components/ui/EmptyState'
 import { DayTrack } from '../components/schedule/DayTrack'
 import { LessonsList } from '../components/schedule/LessonsList'
 
@@ -16,6 +18,7 @@ type SchedulePageProps = {
   showHidden: boolean
   onDateChange: (isoDate: string) => void
   onOpenLesson: (lesson: ScheduleLesson) => void
+  onOpenSettings: () => void
 }
 
 export function SchedulePage({
@@ -29,13 +32,20 @@ export function SchedulePage({
   showHidden,
   onDateChange,
   onOpenLesson,
+  onOpenSettings,
 }: SchedulePageProps) {
   if (!target) {
     return (
-      <div className="mt-5 rounded-md border border-dashed border-[var(--line-strong)] p-12 text-center">
-        <h2>Расписание не выбрано</h2>
-        <p>Открой настройки, чтобы выбрать группу, преподавателя или аудиторию.</p>
-      </div>
+      <EmptyState
+        className="mt-5"
+        title="Расписание не выбрано"
+        description="Выбери группу, преподавателя или аудиторию — выбор сохранится на этом устройстве."
+        action={
+          <Button variant="default" onClick={onOpenSettings}>
+            Открыть настройки
+          </Button>
+        }
+      />
     )
   }
 
