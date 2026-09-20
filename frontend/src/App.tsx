@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Wifi } from 'lucide-react'
-import { AnimatePresence } from 'motion/react'
-import { usePrefetchSchedule, useSchedule } from './hooks/useSchedule'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useScheduleWeeks } from './hooks/useScheduleWeeks'
 import { localDataStore } from './domain/localDataStore'
+import { readScheduleUrl, writeScheduleUrl } from './domain/scheduleUrl'
+import { isLessonHidden, visibleLessons } from './domain/lessonVisibility'
+import { addDays, mondayOf, todayIso } from './domain/weekMath'
+import { formatDateRange } from './domain/dateFormat'
 import type { ScheduleTarget, SubjectRoomExclusion } from './domain/models'
 import type { ScheduleLesson } from './api/schedule'
+import { fadeTransition, screenFadeVariants, screenVariants } from './lib/motion'
 import { OfflineBanner } from './components/OfflineBanner'
 import { BottomNav, type Screen } from './components/BottomNav'
 import { LessonDetails } from './components/LessonDetails'
@@ -14,90 +19,47 @@ import { HighlightsPage } from './pages/HighlightsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { InstallPwaButton } from './components/InstallPwaButton'
 
-const isoDate = (value: Date) => value.toISOString().slice(0, 10)
-
-const addDays = (value: string, days: number) => {
-  const date = new Date(`${value}T12:00:00`)
-  date.setDate(date.getDate() + days)
-  return isoDate(date)
-}
-
-const dateDifference = (from: Date, to: Date) =>
-  Math.round(
-    (Date.UTC(to.getFullYear(), to.getMonth(), to.getDate()) -
-      Date.UTC(from.getFullYear(), from.getMonth(), from.getDate())) /
-      86_400_000,
-  )
-
-const mondayOf = (value: Date) => {
-  const monday = new Date(value)
-  monday.setDate(value.getDate() - (value.getDay() || 7) + 1)
-  return monday
-}
-
-const monthName = (value: Date) =>
-  new Intl.DateTimeFormat('ru-RU', { month: 'short' }).format(value).replace(/[.$]/g, '')
-
-function formatPeriodLabel(from: string, to: string, isMobile: boolean) {
-  const start = new Date(`${from}T12:00:00`)
-  const finish = new Date(`${to}T12:00:00`)
-  const formatDate = (date: Date) => `${date.getDate()} ${monthName(date)}`
-  return isMobile ? formatDate(start) : `${formatDate(start)} — ${formatDate(finish)}`
-}
+const MOBILE_QUERY = '(max-width: 700px)'
 
 export default function App() {
   const [group, setGroup] = useState<ScheduleTarget | null>(null)
   const [online, setOnline] = useState(navigator.onLine)
-  const [weekOffset, setWeekOffset] = useState(0)
-  const [mobileDayOffset, setMobileDayOffset] = useState(0)
-  const [isMobile, setIsMobile] = useState(() => matchMedia('(max-width: 700px)').matches)
+  const [selectedDate, setSelectedDate] = useState(
+    () => readScheduleUrl(window.location.search).date ?? todayIso(),
+  )
+  const [isMobile, setIsMobile] = useState(() => matchMedia(MOBILE_QUERY).matches)
   const [excludedSubjects, setExcludedSubjects] = useState<string[]>([])
   const [excludedSubjectRooms, setExcludedSubjectRooms] = useState<SubjectRoomExclusion[]>([])
   const [showExcludedSubjects, setShowExcludedSubjects] = useState(false)
   const [screen, setScreen] = useState<Screen>('highlights')
   const [selectedLesson, setSelectedLesson] = useState<ScheduleLesson | null>(null)
   const urlInitialized = useRef(false)
-  const scheduleTouchStartX = useRef<number | null>(null)
+  const prefersReducedMotion = useReducedMotion()
 
-  const period = useMemo(() => {
-    const now = new Date()
-    if (isMobile) {
-      const day = new Date(now)
-      day.setDate(now.getDate() + mobileDayOffset)
-      return { from: isoDate(day), to: isoDate(day) }
-    }
+  const today = todayIso()
+  const mondayIso = mondayOf(selectedDate)
+  const filter = useMemo(
+    () => ({ excludedSubjects, excludedSubjectRooms }),
+    [excludedSubjects, excludedSubjectRooms],
+  )
 
-    const monday = new Date(now)
-    monday.setDate(now.getDate() - (now.getDay() || 7) + 1 + weekOffset * 7)
-    const finish = new Date(monday)
-    finish.setDate(monday.getDate() + 6)
-    return { from: isoDate(monday), to: isoDate(finish) }
-  }, [isMobile, mobileDayOffset, weekOffset])
+  const weeks = useScheduleWeeks(group, mondayIso)
+  const rangeLabel = formatDateRange(mondayIso, addDays(mondayIso, 6))
 
-  const schedule = useSchedule(group, period.from, period.to)
-  usePrefetchSchedule(group, period.from, addDays(period.from, 13))
-  const mobileDate = schedule.data?.days[0]?.date
-  const periodLabel = formatPeriodLabel(period.from, period.to, isMobile)
+  const lessonCountAt = useCallback(
+    (isoDate: string) =>
+      visibleLessons(weeks.dayAt(isoDate)?.lessons ?? [], filter, showExcludedSubjects).length,
+    [filter, showExcludedSubjects, weeks],
+  )
 
   useEffect(() => {
     localDataStore.getPreferences().then((preferences) => {
-      const params = new URLSearchParams(window.location.search)
-      const queryTarget = params.get('group')
-        ? { type: 'group' as const, id: Number(params.get('group')) }
-        : params.get('person')
-          ? { type: 'teacher' as const, id: Number(params.get('person')) }
-          : params.get('aud')
-            ? { type: 'room' as const, id: Number(params.get('aud')) }
-            : null
-      const target =
-        queryTarget && Number.isFinite(queryTarget.id)
-          ? {
-              id: queryTarget.id,
-              type: queryTarget.type,
-              name: preferences.group?.name ?? 'Выбранное расписание',
-            }
-          : preferences.group
-      setGroup(target)
+      const fromUrl = readScheduleUrl(window.location.search).target
+      setGroup(
+        fromUrl
+          ? { ...fromUrl, name: preferences.group?.name ?? 'Выбранное расписание' }
+          : preferences.group,
+      )
       setExcludedSubjects(preferences.excludedSubjectIds)
       setExcludedSubjectRooms(preferences.excludedSubjectRooms)
       document.documentElement.dataset.theme = preferences.theme
@@ -114,40 +76,28 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const media = matchMedia('(max-width: 700px)')
+    const media = matchMedia(MOBILE_QUERY)
     const handler = () => setIsMobile(media.matches)
     media.addEventListener('change', handler)
     return () => media.removeEventListener('change', handler)
   }, [])
 
-  const changePeriod = (direction: number) => {
-    if (isMobile) {
-      setMobileDayOffset((value) => value + direction)
+  // Skip the first run so a shared link is not rewritten before preferences load.
+  useEffect(() => {
+    if (!urlInitialized.current) {
+      urlInitialized.current = true
       return
     }
-    setWeekOffset((value) => value + direction)
-  }
+    writeScheduleUrl(group, selectedDate)
+  }, [group, selectedDate])
+
+  const shiftPeriod = (direction: number) =>
+    setSelectedDate((date) => addDays(date, isMobile ? direction : direction * 7))
 
   const hideSubject = (subject: string) => {
     const next = [...new Set([...excludedSubjects, subject])]
     setExcludedSubjects(next)
     void localDataStore.setExcludedSubjects(next)
-  }
-
-  const handleScheduleTouchStart = (event: TouchEvent<HTMLElement>) => {
-    if (screen !== 'schedule' || !isMobile || selectedLesson) return
-    scheduleTouchStartX.current = event.touches[0]?.clientX ?? null
-  }
-
-  const handleScheduleTouchEnd = (event: TouchEvent<HTMLElement>) => {
-    if (screen !== 'schedule' || !isMobile || selectedLesson) return
-    if (scheduleTouchStartX.current === null) return
-    const endX = event.changedTouches[0]?.clientX
-    if (endX === undefined) return
-    const delta = endX - scheduleTouchStartX.current
-    scheduleTouchStartX.current = null
-    if (Math.abs(delta) < 48) return
-    changePeriod(delta < 0 ? 1 : -1)
   }
 
   const showSubject = (subject: string) => {
@@ -169,70 +119,16 @@ export default function App() {
 
   const showLesson = (lesson: ScheduleLesson) => {
     showSubject(lesson.subject)
-    if (lesson.room) {
-      const next = excludedSubjectRooms.filter(
-        (item) => item.subjectId !== lesson.subject || item.roomId !== lesson.room?.id,
-      )
-      setExcludedSubjectRooms(next)
-      void localDataStore.setExcludedSubjectRooms(next)
-    }
+    if (!lesson.room) return
+    const next = excludedSubjectRooms.filter(
+      (item) => item.subjectId !== lesson.subject || item.roomId !== lesson.room?.id,
+    )
+    setExcludedSubjectRooms(next)
+    void localDataStore.setExcludedSubjectRooms(next)
   }
 
-  const goToDate = useCallback(
-    (value: string) => {
-      const selectedDate = new Date(`${value}T12:00:00`)
-      const today = new Date()
-      if (isMobile) {
-        setMobileDayOffset(dateDifference(today, selectedDate))
-        return
-      }
-      setWeekOffset(dateDifference(mondayOf(today), mondayOf(selectedDate)) / 7)
-    },
-    [isMobile],
-  )
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const date = params.get('date')
-    if (date) {
-      const [day, month, year] = date.split('-').map(Number)
-      if (day && month && year) {
-        window.setTimeout(
-          () =>
-            goToDate(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`),
-          0,
-        )
-      }
-    }
-  }, [goToDate])
-
-  useEffect(() => {
-    if (!urlInitialized.current) {
-      urlInitialized.current = true
-      return
-    }
-    const params = new URLSearchParams(window.location.search)
-    params.delete('group')
-    params.delete('person')
-    params.delete('aud')
-    if (group)
-      params.set(
-        group.type === 'group' ? 'group' : group.type === 'teacher' ? 'person' : 'aud',
-        String(group.id),
-      )
-    params.set(
-      'date',
-      `${period.from.slice(8, 10)}-${period.from.slice(5, 7)}-${period.from.slice(0, 4)}`,
-    )
-    window.history.replaceState(null, '', `${window.location.pathname}?${params}`)
-  }, [group, period.from])
-
   return (
-    <main
-      className="mx-auto min-h-screen w-full max-w-6xl touch-pan-y px-3 pb-20 pt-4 sm:px-5"
-      onTouchStart={handleScheduleTouchStart}
-      onTouchEnd={handleScheduleTouchEnd}
-    >
+    <main className="mx-auto min-h-screen w-full max-w-6xl px-3 pb-20 pt-4 sm:px-5">
       {!online && <OfflineBanner />}
       <header className="flex items-end justify-between gap-4 py-3 pb-6">
         <div>
@@ -256,53 +152,67 @@ export default function App() {
       </header>
       <InstallPwaButton />
 
-      {screen === 'schedule' && (
-        <DateSelector
-          groupName={group?.name ?? null}
-          label={periodLabel}
-          showExcluded={showExcludedSubjects}
-          onPrevious={() => changePeriod(-1)}
-          onNext={() => changePeriod(1)}
-          onToggleExcluded={() => setShowExcludedSubjects((value) => !value)}
-          onToday={() => {
-            setWeekOffset(0)
-            setMobileDayOffset(0)
-          }}
-          onDateSelect={goToDate}
-        />
-      )}
-      {screen === 'highlights' && (
-        <HighlightsPage
-          target={group}
-          excludedSubjects={excludedSubjects}
-          excludedSubjectRooms={excludedSubjectRooms}
-          onOpenSchedule={() => setScreen('schedule')}
-        />
-      )}
-      {screen === 'settings' && (
-        <SettingsPage
-          target={group}
-          onTargetChange={(next) => {
-            setGroup(next)
-            void localDataStore.setGroup(next)
-          }}
-        />
-      )}
-      <BottomNav active={screen} onChange={setScreen} />
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={screen}
+          variants={prefersReducedMotion ? screenFadeVariants : screenVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={fadeTransition}
+        >
+          {screen === 'schedule' && (
+            <>
+              <DateSelector
+                groupName={group?.name ?? null}
+                rangeLabel={rangeLabel}
+                selectedDate={selectedDate}
+                mondayIso={mondayIso}
+                todayIso={today}
+                isMobile={isMobile}
+                showExcluded={showExcludedSubjects}
+                lessonCountAt={lessonCountAt}
+                onPrevious={() => shiftPeriod(-1)}
+                onNext={() => shiftPeriod(1)}
+                onToggleExcluded={() => setShowExcludedSubjects((value) => !value)}
+                onToday={() => setSelectedDate(today)}
+                onDateSelect={setSelectedDate}
+              />
+              <SchedulePage
+                target={group}
+                weeks={weeks}
+                online={online}
+                isMobile={isMobile}
+                selectedDate={selectedDate}
+                mondayIso={mondayIso}
+                filter={filter}
+                showHidden={showExcludedSubjects}
+                onDateChange={setSelectedDate}
+                onOpenLesson={setSelectedLesson}
+              />
+            </>
+          )}
+          {screen === 'highlights' && (
+            <HighlightsPage
+              target={group}
+              excludedSubjects={excludedSubjects}
+              excludedSubjectRooms={excludedSubjectRooms}
+              onOpenSchedule={() => setScreen('schedule')}
+            />
+          )}
+          {screen === 'settings' && (
+            <SettingsPage
+              target={group}
+              onTargetChange={(next) => {
+                setGroup(next)
+                void localDataStore.setGroup(next)
+              }}
+            />
+          )}
+        </motion.div>
+      </AnimatePresence>
 
-      {screen === 'schedule' && (
-        <SchedulePage
-          target={group}
-          schedule={schedule}
-          online={online}
-          isMobile={isMobile}
-          mobileDate={mobileDate}
-          excludedSubjects={excludedSubjects}
-          excludedSubjectRooms={excludedSubjectRooms}
-          showExcluded={showExcludedSubjects}
-          onOpenLesson={setSelectedLesson}
-        />
-      )}
+      <BottomNav active={screen} onChange={setScreen} />
 
       <AnimatePresence>
         {selectedLesson && (
@@ -312,16 +222,7 @@ export default function App() {
             onClose={() => setSelectedLesson(null)}
             onHideSubject={hideSubject}
             onHideSubjectInRoom={hideSubjectInRoom}
-            isSubjectHidden={
-              excludedSubjects.includes(selectedLesson.subject) ||
-              (selectedLesson.room
-                ? excludedSubjectRooms.some(
-                    (item) =>
-                      item.subjectId === selectedLesson.subject &&
-                      item.roomId === selectedLesson.room?.id,
-                  )
-                : false)
-            }
+            isSubjectHidden={isLessonHidden(selectedLesson, filter)}
             onShowSubject={() => showLesson(selectedLesson)}
           />
         )}

@@ -3,11 +3,17 @@ import { useRef } from 'react'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 import { Panel } from '../ui/Panel'
+import { WeekStrip } from './WeekStrip'
 
 type DateSelectorProps = {
   groupName: string | null
-  label: string
+  rangeLabel: string
+  selectedDate: string
+  mondayIso: string
+  todayIso: string
+  isMobile: boolean
   showExcluded: boolean
+  lessonCountAt: (isoDate: string) => number
   onPrevious: () => void
   onNext: () => void
   onToggleExcluded: () => void
@@ -17,8 +23,13 @@ type DateSelectorProps = {
 
 export function DateSelector({
   groupName,
-  label,
+  rangeLabel,
+  selectedDate,
+  mondayIso,
+  todayIso,
+  isMobile,
   showExcluded,
+  lessonCountAt,
   onPrevious,
   onNext,
   onToggleExcluded,
@@ -40,6 +51,7 @@ export function DateSelector({
             className="sr-only"
             type="date"
             tabIndex={-1}
+            value={selectedDate}
             onChange={(event) => {
               if (event.target.value) onDateSelect(event.target.value)
             }}
@@ -61,15 +73,25 @@ export function DateSelector({
           </Button>
         </div>
       </div>
-      <div className="flex min-w-[min(100%,15rem)] flex-1 items-center justify-between text-sm text-[var(--muted)]">
-        <IconButton aria-label="Назад" onClick={onPrevious}>
-          <ChevronLeft size={18} />
-        </IconButton>
-        <span className="text-center">{label}</span>
-        <IconButton aria-label="Вперёд" onClick={onNext}>
-          <ChevronRight size={18} />
-        </IconButton>
-      </div>
+      {isMobile ? (
+        <WeekStrip
+          mondayIso={mondayIso}
+          selectedDate={selectedDate}
+          todayIso={todayIso}
+          lessonCountAt={lessonCountAt}
+          onSelect={onDateSelect}
+        />
+      ) : (
+        <div className="flex min-w-[min(100%,15rem)] flex-1 items-center justify-between text-sm text-[var(--muted)]">
+          <IconButton aria-label="Предыдущая неделя" onClick={onPrevious}>
+            <ChevronLeft size={18} />
+          </IconButton>
+          <span className="text-center">{rangeLabel}</span>
+          <IconButton aria-label="Следующая неделя" onClick={onNext}>
+            <ChevronRight size={18} />
+          </IconButton>
+        </div>
+      )}
     </Panel>
   )
 }

@@ -1,31 +1,35 @@
 import type { ScheduleLesson } from '../api/schedule'
-import type { ScheduleTarget, SubjectRoomExclusion } from '../domain/models'
-import { useSchedule } from '../hooks/useSchedule'
+import type { LessonFilter } from '../domain/lessonVisibility'
+import type { ScheduleTarget } from '../domain/models'
+import type { ScheduleWeeks } from '../hooks/useScheduleWeeks'
+import { DayTrack } from '../components/schedule/DayTrack'
 import { LessonsList } from '../components/schedule/LessonsList'
 
-type Props = {
+type SchedulePageProps = {
   target: ScheduleTarget | null
-  schedule: ReturnType<typeof useSchedule>
+  weeks: ScheduleWeeks
   online: boolean
   isMobile: boolean
-  mobileDate?: string
-  excludedSubjects: string[]
-  excludedSubjectRooms: SubjectRoomExclusion[]
-  showExcluded: boolean
+  selectedDate: string
+  mondayIso: string
+  filter: LessonFilter
+  showHidden: boolean
+  onDateChange: (isoDate: string) => void
   onOpenLesson: (lesson: ScheduleLesson) => void
 }
 
 export function SchedulePage({
   target,
-  schedule,
+  weeks,
   online,
   isMobile,
-  mobileDate,
-  excludedSubjects,
-  excludedSubjectRooms,
-  showExcluded,
+  selectedDate,
+  mondayIso,
+  filter,
+  showHidden,
+  onDateChange,
   onOpenLesson,
-}: Props) {
+}: SchedulePageProps) {
   if (!target) {
     return (
       <div className="mt-5 rounded-md border border-dashed border-[var(--line-strong)] p-12 text-center">
@@ -35,17 +39,9 @@ export function SchedulePage({
     )
   }
 
-  if (schedule.isPending) {
-    return (
-      <div className="mt-5 rounded-md border border-dashed border-[var(--line-strong)] p-12 text-center">
-        <p>{online ? 'Загружаем расписание…' : 'Загрузим, когда появится сеть'}</p>
-      </div>
-    )
-  }
-
   return (
     <div>
-      {schedule.isError && (
+      {weeks.isError && (
         <div
           className="mt-4 grid gap-1 rounded-md border-l-4 border-[var(--warning)] bg-[var(--warning-soft)] px-4 py-3 text-xs text-[var(--warning)]"
           role="status"
@@ -58,14 +54,24 @@ export function SchedulePage({
           </span>
         </div>
       )}
-      {schedule.data && (
+      {isMobile ? (
+        <div className="mt-5">
+          <DayTrack
+            date={selectedDate}
+            dayAt={weeks.dayAt}
+            filter={filter}
+            showHidden={showHidden}
+            isLoading={weeks.isPending}
+            onDateChange={onDateChange}
+            onOpenLesson={onOpenLesson}
+          />
+        </div>
+      ) : (
         <LessonsList
-          schedule={schedule.data}
-          excludedSubjects={excludedSubjects}
-          excludedSubjectRooms={excludedSubjectRooms}
-          showExcluded={showExcluded}
-          isMobile={isMobile}
-          mobileDate={mobileDate}
+          mondayIso={mondayIso}
+          weeks={weeks}
+          filter={filter}
+          showHidden={showHidden}
           onOpenLesson={onOpenLesson}
         />
       )}
