@@ -5,6 +5,7 @@ import { useSchedule } from '../hooks/useSchedule'
 import { localDataStore } from '../domain/localDataStore'
 import type { LessonNote, ScheduleTarget, SubjectRoomExclusion } from '../domain/models'
 import { isLessonHidden } from '../domain/lessonVisibility'
+import { useLocalDataVersion } from '../hooks/useLocalDataVersion'
 import { addDays, todayIso } from '../domain/weekMath'
 import { formatTimeUntil } from '../domain/dateFormat'
 import { LessonDetails } from './LessonDetails'
@@ -43,9 +44,16 @@ export function Highlights({
   const [notes, setNotes] = useState<LessonNote[]>([])
   const [showPast, setShowPast] = useState(false)
   const [selected, setSelected] = useState<ScheduleLesson | null>(null)
+  const dataVersion = useLocalDataVersion()
   useEffect(() => {
-    localDataStore.exportSnapshot().then((snapshot) => setNotes(snapshot.notes))
-  }, [])
+    let cancelled = false
+    localDataStore.exportSnapshot().then((snapshot) => {
+      if (!cancelled) setNotes(snapshot.notes)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [dataVersion])
   const lessons = useMemo(
     () =>
       (schedule.data?.days.find((day) => day.date === today)?.lessons ?? []).filter(
