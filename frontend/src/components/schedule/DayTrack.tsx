@@ -11,6 +11,8 @@ import { DaySchedule } from './DaySchedule'
 const SWIPE_DISTANCE_RATIO = 0.25
 /** Flick speed in px/s that changes the day regardless of distance. */
 const SWIPE_VELOCITY = 350
+/** Gap in px between neighbouring days, so they read as separate sheets mid-drag. */
+const DAY_GAP = 16
 
 type DayTrackProps = {
   date: string
@@ -42,6 +44,7 @@ export function DayTrack({
   const trackDateRef = useRef(date)
   const x = useMotionValue(0)
   const prefersReducedMotion = useReducedMotion()
+  const step = width + DAY_GAP
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
@@ -72,9 +75,9 @@ export function DayTrack({
       moveTrackTo(date, 0)
       return
     }
-    moveTrackTo(date, direction * width)
+    moveTrackTo(date, direction * step)
     animate(x, 0, snapSpring)
-  }, [date, moveTrackTo, prefersReducedMotion, width, x])
+  }, [date, moveTrackTo, prefersReducedMotion, step, width, x])
 
   const handleDragEnd = (_event: unknown, info: PanInfo) => {
     if (width === 0) return
@@ -97,7 +100,7 @@ export function DayTrack({
       settle()
       return
     }
-    animate(x, -direction * width, { ...snapSpring, onComplete: settle })
+    animate(x, -direction * step, { ...snapSpring, onComplete: settle })
   }
 
   const dates = [addDays(trackDate, -1), trackDate, addDays(trackDate, 1)]
@@ -106,12 +109,12 @@ export function DayTrack({
     <div ref={viewportRef} className="overflow-hidden">
       <motion.div
         className="flex"
-        style={{ x, marginLeft: -width, touchAction: 'pan-y' }}
+        style={{ x, gap: DAY_GAP, marginLeft: -step, touchAction: 'pan-y' }}
         drag={width > 0 ? 'x' : false}
         dragDirectionLock
         dragMomentum={false}
         dragElastic={0.1}
-        dragConstraints={{ left: -width, right: width }}
+        dragConstraints={{ left: -step, right: step }}
         onDragEnd={handleDragEnd}
       >
         {dates.map((isoDate) => (
