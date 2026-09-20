@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useReducedMotion } from 'motion/react'
 import type { ScheduleDay, ScheduleLesson } from '../../api/schedule'
 import type { LessonFilter } from '../../domain/lessonVisibility'
-import { addDays, diffDays } from '../../domain/weekMath'
+import { addDays, diffDays, mondayOf } from '../../domain/weekMath'
 import { DaySchedule } from './DaySchedule'
 
 /** The window matches the three weeks `useScheduleWeeks` keeps in cache. */
@@ -17,9 +17,10 @@ const SETTLE_DELAY = 140
 /** Longer jumps are instant, because smooth-scrolling past ten days is noise. */
 const SMOOTH_DISTANCE = 2
 
+const windowStartFor = (isoDate: string) => addDays(mondayOf(isoDate), -DAYS_BEFORE)
+
 type DayScrollerProps = {
   date: string
-  mondayIso: string
   dayAt: (isoDate: string) => ScheduleDay | undefined
   filter: LessonFilter
   showHidden: boolean
@@ -31,13 +32,14 @@ type DayScrollerProps = {
 /**
  * Three weeks of days in one horizontal scroll container with snap points.
  * Scrolling is native, so momentum carries across several days and a new swipe
- * can start before the previous one has settled. The date is committed once
- * scrolling stops; only the days next to the centre render, which keeps the
- * container as tall as the visible day rather than the busiest day in three weeks.
+ * can start before the previous one has settled.
+ *
+ * The window is re-anchored only once scrolling has stopped. Shifting it while
+ * momentum is still running moves the scroll position under the finger, which
+ * sends the scroller across another week boundary and never settles.
  */
 export function DayScroller({
   date,
-  mondayIso,
   dayAt,
   filter,
   showHidden,
@@ -50,16 +52,17 @@ export function DayScroller({
   const step = width + DAY_GAP
   const prefersReducedMotion = useReducedMotion()
 
-  const windowStart = useMemo(() => addDays(mondayIso, -DAYS_BEFORE), [mondayIso])
+  const [windowStart, setWindowStart] = useState(() => windowStartFor(date))
+  const windowStartRef = useRef(windowStart)
+  const pendingShiftRef = useRef(0)
+
   const dates = useMemo(
     () => Array.from({ length: WINDOW_LENGTH }, (_, index) => addDays(windowStart, index)),
     [windowStart],
   )
-  const targetIndex = diffDays(windowStart, date)
-
-  const [centerIndex, setCenterIndex] = useState(targetIndex)
-  const centerIndexRef = useRef(targetIndex)
-  const windowStartRef = useRef(windowStart)
+  const initialIndex = diffDays(windowStart, date)
+  const centerIndexRef = useRef(initialIndex)
+  const [centerIndex, setCenterIndex] = useState(initialIndex)
   const positionedRef = useRef(false)
   const settleTimerRef = useRef<number>(undefined)
   const frameRef = useRef<number>(undefined)
@@ -78,36 +81,46 @@ export function DayScroller({
     return () => observer.disconnect()
   }, [])
 
-  // Moving into a neighbouring week shifts the whole window, so the scroll
-  // position has to be corrected before paint or the day appears to jump.
-  useLayoutEffect(() => {
-    const scroller = scrollerRef.current
-    const shift = diffDays(windowStartRef.current, windowStart)
-    windowStartRef.current = windowStart
-    if (!scroller || step === 0 || shift === 0) return
-    scroller.scrollLeft -= shift * step
-    moveCenterTo(centerIndexRef.current - shift)
-  }, [moveCenterTo, step, windowStart])
-
-  useLayoutEffect(() => {
-    const scroller = scrollerRef.current
-    if (!scroller || step === 0 || positionedRef.current) return
-    positionedRef.current = true
-    scroller.scrollLeft = targetIndex * step
-  }, [step, targetIndex])
-
-  // Dates chosen elsewhere (week strip, arrows, date picker) scroll into view.
+  // Re-anchoring happens after the date is committed, never during a scroll.
   useEffect(() => {
+    if (mondayOf(date) === addDays(windowStartRef.current, DAYS_BEFORE)) return
+    const nextStart = windowStartFor(date)
+    pendingShiftRef.current += diffDays(windowStartRef.current, nextStart)
+    windowStartRef.current = nextStart
+    setWindowStart(nextStart)
+  }, [date])
+
+  useLayoutEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller || step === 0) return
-    const distance = Math.abs(targetIndex - centerIndexRef.current)
+
+    // The window moved, so hold the same day under the viewport.
+    const shift = pendingShiftRef.current
+    if (shift !== 0) {
+      pendingShiftRef.current = 0
+      scroller.scrollLeft -= shift * step
+      moveCenterTo(centerIndexRef.current - shift)
+    }
+
+    const index = diffDays(windowStartRef.current, date)
+    if (index < 0 || index >= WINDOW_LENGTH) return
+
+    if (!positionedRef.current) {
+      positionedRef.current = true
+      scroller.scrollLeft = index * step
+      moveCenterTo(index)
+      return
+    }
+
+    // The date came from the week strip, the arrows or the date picker.
+    const distance = Math.abs(index - centerIndexRef.current)
     if (distance === 0) return
-    moveCenterTo(targetIndex)
+    moveCenterTo(index)
     scroller.scrollTo({
-      left: targetIndex * step,
+      left: index * step,
       behavior: prefersReducedMotion || distance > SMOOTH_DISTANCE ? 'auto' : 'smooth',
     })
-  }, [moveCenterTo, prefersReducedMotion, step, targetIndex])
+  }, [date, moveCenterTo, prefersReducedMotion, step, windowStart])
 
   useEffect(
     () => () => {
@@ -128,11 +141,11 @@ export function DayScroller({
 
       window.clearTimeout(settleTimerRef.current)
       settleTimerRef.current = window.setTimeout(() => {
-        const settled = dates[centerIndexRef.current]
-        if (settled && settled !== date) onDateChange(settled)
+        const settled = addDays(windowStartRef.current, centerIndexRef.current)
+        if (settled !== date) onDateChange(settled)
       }, SETTLE_DELAY)
     })
-  }, [date, dates, moveCenterTo, onDateChange, step])
+  }, [date, moveCenterTo, onDateChange, step])
 
   return (
     <div

@@ -68,7 +68,6 @@ export function SchedulePage({
         <div className="mt-5">
           <DayScroller
             date={selectedDate}
-            mondayIso={mondayIso}
             dayAt={weeks.dayAt}
             filter={filter}
             showHidden={showHidden}
