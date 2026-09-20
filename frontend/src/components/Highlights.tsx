@@ -6,11 +6,17 @@ import { localDataStore } from '../domain/localDataStore'
 import type { LessonNote, ScheduleTarget, SubjectRoomExclusion } from '../domain/models'
 import { isLessonHidden } from '../domain/lessonVisibility'
 import { addDays, todayIso } from '../domain/weekMath'
+import { formatTimeUntil } from '../domain/dateFormat'
 import { LessonDetails } from './LessonDetails'
 import type { ScheduleLesson } from '../api/schedule'
 import { LessonCard } from './schedule/LessonCard'
 import { Button } from './ui/Button'
 import { EmptyState } from './ui/EmptyState'
+
+/** Refresh often enough that the minutes in the countdown stay believable. */
+const COUNTDOWN_INTERVAL = 30_000
+
+const lessonStartAt = (date: string, lesson: ScheduleLesson) => new Date(`${date}T${lesson.start}`)
 
 type Props = {
   group: ScheduleTarget | null
@@ -51,7 +57,11 @@ export function Highlights({
     const [hours, minutes] = value.split(':').map(Number)
     return hours * 60 + minutes
   }
-  const now = new Date()
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), COUNTDOWN_INTERVAL)
+    return () => window.clearInterval(timer)
+  }, [])
   const nowMinutes = now.getHours() * 60 + now.getMinutes()
   const past = lessons.filter((lesson) => toMinutes(lesson.finish) <= nowMinutes)
   const visible = lessons.filter((lesson) => showPast || toMinutes(lesson.finish) > nowMinutes)
@@ -65,6 +75,16 @@ export function Highlights({
       ) ?? [],
     [schedule.data, filter],
   )
+  const nextLesson = useMemo(() => {
+    let earliest: { lesson: ScheduleLesson; startsAt: Date } | null = null
+    for (const { lesson, date } of futureLessons) {
+      const startsAt = lessonStartAt(date, lesson)
+      if (startsAt.getTime() <= now.getTime()) continue
+      if (!earliest || startsAt < earliest.startsAt) earliest = { lesson, startsAt }
+    }
+    return earliest
+  }, [futureLessons, now])
+
   const futureNotes = notes.flatMap((note) => {
     const scheduled = futureLessons.find((item) => item.lesson.id === note.lessonId)
     if (!scheduled) return []
@@ -77,7 +97,16 @@ export function Highlights({
   return (
     <section className="pt-6">
       <p className="m-0 text-[11px] font-bold tracking-[.14em] text-[var(--accent)]">СЕГОДНЯ</p>
-      <h2 className="my-1 text-3xl font-semibold tracking-tight">Highlights</h2>
+      <h2 className="my-1 text-3xl font-semibold tracking-tight">
+        Ближайшие пары
+        {nextLesson && (
+          <span className="font-normal text-[var(--muted)]">
+            {' ('}
+            {formatTimeUntil(now, nextLesson.startsAt)}
+            {')'}
+          </span>
+        )}
+      </h2>
       <p className="mt-0 text-[var(--muted)]">
         {new Date(`${today}T12:00:00`).toLocaleDateString('ru-RU', {
           weekday: 'long',
@@ -106,7 +135,15 @@ export function Highlights({
         />
       )}
       {group && schedule.data && visible.length === 0 && !showPast && (
-        <EmptyState className="mt-8" title="На сегодня всё" description="Будущих пар нет." />
+        <EmptyState
+          className="mt-8"
+          title="На сегодня всё"
+          description={
+            nextLesson
+              ? `Следующая пара — ${formatTimeUntil(now, nextLesson.startsAt)}.`
+              : 'Будущих пар нет.'
+          }
+        />
       )}
       {group && (
         <div className="mt-6 grid gap-3">
