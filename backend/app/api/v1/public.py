@@ -8,7 +8,7 @@ from app.infrastructure.cache import MemoryCache
 from app.infrastructure.http import http_client
 from app.infrastructure.rate_limit import RateLimiter
 from app.providers.mpei_ruz.client import MpeiRuzClient, RuzUpstreamError
-from app.schemas.common import EntityType, ScheduleResponse, SearchResponse
+from app.schemas.common import EntityType, ScheduleResponse, SearchItem, SearchResponse
 from app.services.public_service import PublicScheduleService
 
 router = APIRouter()
@@ -49,6 +49,24 @@ async def search(
         return await service.search(type, q.strip(), limit, offset)
     except RuzUpstreamError as error:
         raise HTTPException(status_code=502, detail="Schedule provider unavailable") from error
+
+
+@router.get("/groups/lookup", response_model=SearchItem)
+async def group_lookup(
+    request: Request,
+    response: Response,
+    service: Service,
+    name: str = Query(..., min_length=1, max_length=100),
+) -> SearchItem:
+    """Exact group by name; a Latin spelling (`A-06m-26`) is read as Cyrillic."""
+    check_limit(request, response)
+    try:
+        group = await service.find_group(name)
+    except RuzUpstreamError as error:
+        raise HTTPException(status_code=502, detail="Schedule provider unavailable") from error
+    if group is None:
+        raise HTTPException(status_code=404, detail="Group not found")
+    return group
 
 
 async def _schedule(

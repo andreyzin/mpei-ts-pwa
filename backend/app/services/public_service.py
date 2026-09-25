@@ -4,7 +4,14 @@ from datetime import date
 from app.infrastructure.cache import MemoryCache
 from app.providers.mpei_ruz.client import MpeiRuzClient
 from app.providers.mpei_ruz.mapper import map_schedule, map_search
-from app.schemas.common import EntityType, Pagination, ScheduleResponse, SearchResponse
+from app.schemas.common import (
+    EntityType,
+    Pagination,
+    ScheduleResponse,
+    SearchItem,
+    SearchResponse,
+)
+from app.services.group_name import same_group_name, to_cyrillic
 
 
 class PublicScheduleService:
@@ -16,6 +23,8 @@ class PublicScheduleService:
     async def search(
         self, entity_type: EntityType, query: str, limit: int, offset: int
     ) -> SearchResponse:
+        if entity_type == EntityType.group:
+            query = to_cyrillic(query)
         key = f"search:{entity_type}:{query.casefold()}:{limit}:{offset}"
         cached = await self.cache.get(key)
         if cached is not None:
@@ -30,6 +39,11 @@ class PublicScheduleService:
         )
         await self.cache.set(key, response.model_dump(mode="json"), 600)
         return response
+
+    async def find_group(self, name: str) -> SearchItem | None:
+        """Exact match only: a share link must not open a neighbouring group."""
+        found = await self.search(EntityType.group, name.strip(), limit=50, offset=0)
+        return next((item for item in found.items if same_group_name(item.name, name)), None)
 
     async def schedule(
         self,

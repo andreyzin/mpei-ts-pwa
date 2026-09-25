@@ -16,6 +16,11 @@ Open <http://localhost:5173>. The frontend proxies `/api/*` requests to the back
 ## Public API
 
 Search groups, teachers, and rooms with `GET /api/v1/search?type=group|teacher|room&q=...`.
+For groups, Latin letters in `q` are read as Cyrillic: `A-06m-26` finds `А-06м-26`
+(`app/services/group_name.py` holds the letter map; `e` is `э`).
+
+Find one group by its exact name with `GET /api/v1/groups/lookup?name=A-06m-26`. It returns
+a search item, or `404` when no group has that name.
 Fetch a normalized schedule for an inclusive date range with:
 
 ```text
