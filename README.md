@@ -21,6 +21,7 @@ For groups, Latin letters in `q` are read as Cyrillic: `A-06m-26` finds `А-06м
 
 Find one group by its exact name with `GET /api/v1/groups/lookup?name=A-06m-26`. It returns
 a search item, or `404` when no group has that name.
+
 Fetch a normalized schedule for an inclusive date range with:
 
 ```text
@@ -31,6 +32,27 @@ GET /api/v1/rooms/{id}/schedule?from=YYYY-MM-DD&to=YYYY-MM-DD
 
 The backend owns the upstream RUZ integration, normalization, caching, and rate limiting;
 clients should not call `ts.mpei.ru` directly.
+
+## Share links
+
+`/<group>` and `/<group>/<date>` open a group's schedule on a day, e.g. `/А-06м-26/2-9`.
+The group may be spelled in Latin (`/A-06m-26`). The date is `d-m`, `d-m-yy` or `d-m-yyyy`
+(`2-9`, `02-09-26` and `02-09-2026` are all 2 September); without a year it is the current
+one, without a date it is today in Moscow.
+
+Messengers do not run the app, so these paths go to the backend as `/share/<group>/<date>`.
+It answers with an HTML page whose Open Graph title is the group and the day and whose
+description lists that day's lessons, then sends people on to `/?group=<id>&date=<dd-mm-yyyy>`.
+An unknown group or an invalid date is `404`, an unavailable RUZ is `502`.
+
+The Vite dev server proxies them already. In production the proxy in front of the frontend
+needs the same rule; with nginx:
+
+```nginx
+location ~ "^/[^/.@_]*[0-9][^/.]*(/[^/.]+)?$" {
+    proxy_pass http://backend:8000/share$request_uri;
+}
+```
 
 ## Run locally
 

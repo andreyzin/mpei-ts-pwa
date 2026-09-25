@@ -3,8 +3,15 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import tailwindcss from '@tailwindcss/vite'
 
+/**
+ * `/<group>` and `/<group>/<date>` share links. A group code always has a digit,
+ * which keeps Vite's own paths (`/@vite/client`, `/src/*.tsx`) out.
+ */
+const SHARE_LINK = '^/[^/.@_?]*\\d[^/.?]*(/[^/.?]+)?(\\?.*)?$'
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '')
+  const apiTarget = env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:8000'
 
   return {
     plugins: [
@@ -44,9 +51,12 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: {
-        '/api': {
-          target: env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:8000',
+        '/api': { target: apiTarget, changeOrigin: true },
+        // The backend renders Open Graph tags for messengers and sends people on to the app.
+        [SHARE_LINK]: {
+          target: apiTarget,
           changeOrigin: true,
+          rewrite: (path) => `/share${path}`,
         },
       },
     },
