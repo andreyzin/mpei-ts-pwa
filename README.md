@@ -41,15 +41,23 @@ The group may be spelled in Latin (`/A-06m-26`). The date is `d-m`, `d-m-yy` or 
 one, without a date it is today in Moscow.
 
 Messengers do not run the app, so these paths go to the backend as `/share/<group>/<date>`.
-It answers with an HTML page whose Open Graph title is the group and the day and whose
-description lists that day's lessons, then sends people on to `/?group=<id>&date=<dd-mm-yyyy>`.
-An unknown group or an invalid date is `404`, an unavailable RUZ is `502`.
+It answers with an HTML page whose Open Graph title is the group and the day, whose
+description lists that day's lessons and whose image is
+`GET /api/v1/share/<group>/<dd-mm-yyyy>.png`, a 1200×630 picture of the day. Then it sends
+people on to `/?group=<id>&date=<dd-mm-yyyy>`. An unknown group or an invalid date is `404`,
+an unavailable RUZ is `502`.
+
+`og:image` must be an absolute URL, so the backend takes the host from `X-Forwarded-Host`
+(or `Host`) and the scheme from `X-Forwarded-Proto`. The picture uses Golos Text, bundled in
+`backend/app/assets/fonts` under the SIL Open Font License.
 
 The Vite dev server proxies them already. In production the proxy in front of the frontend
 needs the same rule; with nginx:
 
 ```nginx
 location ~ "^/[^/.@_]*[0-9][^/.]*(/[^/.]+)?$" {
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
     proxy_pass http://backend:8000/share$request_uri;
 }
 ```

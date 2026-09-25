@@ -10,8 +10,10 @@ from app.main import app
 from app.providers.mpei_ruz.client import RuzUpstreamError
 from app.services.public_service import PublicScheduleService
 from app.services.share_preview import (
+    SharePreview,
     SharePreviewNotFound,
-    build_share_preview,
+    describe_day,
+    load_shared_day,
     parse_share_date,
 )
 from tests.fakes import FakeRuzClient
@@ -40,6 +42,15 @@ LESSONS = [
 ]
 
 
+def build_share_preview(
+    service: PublicScheduleService, group: str, raw_date: str | None, today: date
+) -> SharePreview:
+    async def build() -> SharePreview:
+        return describe_day(await load_shared_day(service, group, raw_date, today), today)
+
+    return asyncio.run(build())
+
+
 @pytest.mark.parametrize("raw", ["2-9", "02-09", "02-09-26", "02-09-2026", "2-9-2026"])
 def test_share_date_formats_mean_the_same_day(raw: str) -> None:
     assert parse_share_date(raw, TODAY) == date(2026, 9, 2)
@@ -56,8 +67,8 @@ def test_invalid_share_date_is_rejected(raw: str) -> None:
 
 def test_preview_lists_the_day_in_time_order() -> None:
     client = FakeRuzClient(GROUPS, LESSONS)
-    preview = asyncio.run(
-        build_share_preview(PublicScheduleService(client, MemoryCache()), "A-06m-26", "2-9", TODAY)
+    preview = build_share_preview(
+        PublicScheduleService(client, MemoryCache()), "A-06m-26", "2-9", TODAY
     )
 
     assert client.schedule_requests == [(101, date(2026, 9, 2), date(2026, 9, 2))]
@@ -70,13 +81,11 @@ def test_preview_lists_the_day_in_time_order() -> None:
 
 
 def test_preview_of_a_free_day_from_another_year() -> None:
-    preview = asyncio.run(
-        build_share_preview(
-            PublicScheduleService(FakeRuzClient(GROUPS), MemoryCache()),
-            "А-06м-26",
-            "5-1-27",
-            TODAY,
-        )
+    preview = build_share_preview(
+        PublicScheduleService(FakeRuzClient(GROUPS), MemoryCache()),
+        "А-06м-26",
+        "5-1-27",
+        TODAY,
     )
 
     assert preview.title == "А-06м-26 — вторник, 5 января 2027"
@@ -85,7 +94,7 @@ def test_preview_of_a_free_day_from_another_year() -> None:
 
 def test_unknown_group_has_no_preview() -> None:
     with pytest.raises(SharePreviewNotFound):
-        asyncio.run(
+        (
             build_share_preview(
                 PublicScheduleService(FakeRuzClient(GROUPS), MemoryCache()), "A-99", None, TODAY
             )
@@ -140,3 +149,23 @@ def test_share_page_when_ruz_is_down(share_client) -> None:
 
     assert response.status_code == 502
     assert "Расписание временно недоступно" in response.text
+
+
+def test_share_page_points_to_the_image_where_it_was_opened(share_client) -> None:
+    response = share_client(FakeRuzClient(GROUPS, LESSONS)).get(
+        "/share/A-06m-26/2-9",
+        headers={"x-forwarded-host": "schedule.example", "x-forwarded-proto": "https"},
+    )
+
+    image_url = "https://schedule.example/api/v1/share/%D0%90-06%D0%BC-26/02-09-2026.png"
+    assert f'<meta property="og:image" content="{image_url}" />' in response.text
+    assert '<meta name="twitter:card" content="summary_large_image" />' in response.text
+
+
+def test_share_page_drops_the_image_for_a_forged_host(share_client) -> None:
+    response = share_client(FakeRuzClient(GROUPS, LESSONS)).get(
+        "/share/A-06m-26/2-9", headers={"host": 'evil"><script>'}
+    )
+
+    assert "og:image" not in response.text
+    assert '<meta name="twitter:card" content="summary" />' in response.text

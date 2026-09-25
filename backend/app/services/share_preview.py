@@ -7,8 +7,9 @@ assembled here from the same normalized schedule the client gets.
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from urllib.parse import quote
 
-from app.schemas.common import Lesson, LessonStatus, LessonType, ScheduleDay
+from app.schemas.common import Lesson, LessonStatus, LessonType, ScheduleDay, SearchItem
 from app.services.public_service import PublicScheduleService
 
 # Moscow has had no DST since 2014; a fixed offset avoids depending on tzdata.
@@ -46,10 +47,17 @@ class SharePreviewNotFound(LookupError):
 
 
 @dataclass(frozen=True)
+class SharedDay:
+    group: SearchItem
+    day: ScheduleDay
+
+
+@dataclass(frozen=True)
 class SharePreview:
     title: str
     description: str
     app_url: str
+    image_path: str | None = None
 
 
 def moscow_today() -> date:
@@ -80,32 +88,46 @@ def format_share_date(value: date) -> str:
     return value.strftime("%d-%m-%Y")
 
 
-def _day_title(value: date, today: date) -> str:
+def day_title(value: date, today: date) -> str:
     title = f"{_WEEKDAYS[value.weekday()]}, {value.day} {_MONTHS[value.month - 1]}"
     return title if value.year == today.year else f"{title} {value.year}"
 
 
+def lesson_kind(lesson: Lesson) -> str:
+    return _LESSON_TYPES.get(lesson.type) or lesson.raw_type or "Занятие"
+
+
+def lessons_in_order(day: ScheduleDay) -> list[Lesson]:
+    return sorted(day.lessons, key=lambda lesson: lesson.start)
+
+
 def _lesson_line(lesson: Lesson) -> str:
-    kind = _LESSON_TYPES.get(lesson.type) or lesson.raw_type or "Занятие"
-    parts = [f"{lesson.start:%H:%M}–{lesson.finish:%H:%M}", lesson.subject, kind]
+    parts = [f"{lesson.start:%H:%M}–{lesson.finish:%H:%M}", lesson.subject, lesson_kind(lesson)]
     if lesson.room and lesson.room.name:
         parts.append(lesson.room.name)
     line = " · ".join(parts)
     return f"Отменена: {line}" if lesson.status == LessonStatus.cancelled else line
 
 
-def describe_day(group_name: str, group_id: int, day: ScheduleDay, today: date) -> SharePreview:
-    lessons = sorted(day.lessons, key=lambda lesson: lesson.start)
+def describe_day(shared: SharedDay, today: date) -> SharePreview:
+    lessons = lessons_in_order(shared.day)
     return SharePreview(
-        title=f"{group_name} — {_day_title(day.date, today)}",
+        title=f"{shared.group.name} — {day_title(shared.day.date, today)}",
         description="\n".join(map(_lesson_line, lessons)) if lessons else "Пар нет",
-        app_url=f"/?group={group_id}&date={format_share_date(day.date)}",
+        app_url=f"/?group={shared.group.id}&date={format_share_date(shared.day.date)}",
+        image_path=share_image_path(shared),
     )
 
 
-async def build_share_preview(
+def share_image_path(shared: SharedDay) -> str:
+    """Canonical name and full date, so every spelling of a link shares one image URL."""
+    group = quote(shared.group.name, safe="")
+    return f"/api/v1/share/{group}/{format_share_date(shared.day.date)}.png"
+
+
+async def load_shared_day(
     service: PublicScheduleService, group_name: str, raw_date: str | None, today: date
-) -> SharePreview:
+) -> SharedDay:
     """Raises SharePreviewNotFound for an unknown group or an invalid date."""
     day = parse_share_date(raw_date, today)
     if day is None:
@@ -114,4 +136,4 @@ async def build_share_preview(
     if group is None:
         raise SharePreviewNotFound("unknown group")
     schedule = await service.schedule(group.type, group.id, group.name, day, day, "ru")
-    return describe_day(group.name, group.id, schedule.days[0], today)
+    return SharedDay(group, schedule.days[0])

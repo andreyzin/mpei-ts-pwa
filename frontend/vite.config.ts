@@ -56,6 +56,8 @@ export default defineConfig(({ mode }) => {
         [SHARE_LINK]: {
           target: apiTarget,
           changeOrigin: true,
+          // X-Forwarded-Host: the page's og:image must point at this server, not the backend.
+          xfwd: true,
           rewrite: (path) => `/share${path}`,
         },
       },
