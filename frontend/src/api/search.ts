@@ -21,3 +21,11 @@ export async function searchEntities(
   const payload = (await response.json()) as { items: SearchItem[] }
   return payload.items
 }
+
+/** Exact group by name; the backend reads a Latin spelling (`A-06m-26`) as Cyrillic. */
+export async function lookupGroup(name: string, signal?: AbortSignal): Promise<SearchItem> {
+  const params = new URLSearchParams({ name })
+  const response = await fetch(`/api/v1/groups/lookup?${params}`, { signal })
+  if (!response.ok) throw new Error(`GROUP_LOOKUP_${response.status}`)
+  return (await response.json()) as SearchItem
+}

@@ -54,6 +54,9 @@ location ~ "^/[^/.@_]*[0-9][^/.]*(/[^/.]+)?$" {
 }
 ```
 
+The installed PWA opens these links itself: its service worker serves the app, which reads
+the path and resolves the group with `/api/v1/groups/lookup`.
+
 ## Run locally
 
 Backend:
