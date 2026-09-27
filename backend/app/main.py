@@ -2,9 +2,11 @@ from fastapi import FastAPI
 
 from app.api.share import router as share_router
 from app.api.v1.public import router as public_router
+from app.api.v1.suggestions import router as suggestions_router
 
 app = FastAPI(title="Monorepo API", version="0.1.0")
 app.include_router(public_router, prefix="/api/v1", tags=["public"])
+app.include_router(suggestions_router, prefix="/api/v1", tags=["suggestions"])
 app.include_router(share_router)
 
 

@@ -30,6 +30,15 @@ GET /api/v1/teachers/{id}/schedule?from=YYYY-MM-DD&to=YYYY-MM-DD
 GET /api/v1/rooms/{id}/schedule?from=YYYY-MM-DD&to=YYYY-MM-DD
 ```
 
+Send a feature suggestion to the maintainers' Telegram chat with
+`POST /api/v1/suggestions` and a body `{"text": "3..2000 chars", "contact": "optional"}`.
+It answers `202`, or `422` for an invalid body, `429` after `SUGGESTIONS_PER_HOUR` (5) from
+one address, `503` when `TELEGRAM_BOT_TOKEN` or `SUGGESTIONS_CHAT_ID` is not set and `502`
+when Telegram does not accept the message.
+
+The backend reads its settings from environment variables named like the fields of
+`app/config.py` (`RUZ_BASE_URL`, `CACHE_TTL_SECONDS`, `RATE_LIMIT_PER_MINUTE`, ...).
+
 The backend owns the upstream RUZ integration, normalization, caching, and rate limiting;
 clients should not call `ts.mpei.ru` directly.
 
