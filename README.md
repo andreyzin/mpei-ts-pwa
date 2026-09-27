@@ -1,9 +1,10 @@
 # Vite + FastAPI monorepo
 
-The repository contains two independent applications connected by Docker Compose:
+The repository contains independent applications connected by Docker Compose:
 
 - `frontend/` — React, TypeScript, and Vite
 - `backend/` — Python and FastAPI
+- `bot/` — Telegram bot on aiogram, a client of the backend API
 
 ## Run with Docker
 
@@ -11,7 +12,15 @@ The repository contains two independent applications connected by Docker Compose
 docker compose up --build
 ```
 
-Open <http://localhost:5173>. The frontend proxies `/api/*` requests to the backend. Backend API docs are available at <http://localhost:8000/docs>.
+Open <http://localhost:5173>. Optional services start with a profile; copy `.env.example`
+to `.env` first:
+
+```sh
+docker compose --profile bot up --build        # + Telegram bot and Postgres
+docker compose --profile analytics up --build  # + Umami on :3000 and Postgres
+```
+
+The frontend proxies `/api/*` requests to the backend. Backend API docs are available at <http://localhost:8000/docs>.
 
 ## Public API
 
@@ -76,6 +85,29 @@ location ~ "^/[^/.@_]*[0-9][^/.]*(/[^/.]+)?$" {
 The installed PWA opens these links itself: its service worker serves the app, which reads
 the path and resolves the group with `/api/v1/groups/lookup`.
 
+## Telegram bot
+
+In a private chat the bot asks for a group (Latin spelling works; near misses offer buttons)
+and keeps it in Postgres. Then `@<bot>` in any chat lists the coming seven days of that group;
+choosing one posts its lessons with a link to the share page. `@<bot> Э-01-24` shows another
+group without changing the saved one.
+
+The bot calls only our backend (`SCHEDULE_API_URL`) and sends `INTERNAL_API_TOKEN` to skip its
+rate limit. It uses long polling unless `WEBHOOK_BASE_URL` is `https://...`; then it registers a
+webhook at `$WEBHOOK_BASE_URL/telegram/webhook`, checks `WEBHOOK_SECRET` and listens on `:8080`.
+`TELEGRAM_API_BASE` points it, and the backend, at a local Bot API server. Inline mode has to be
+enabled for the bot in @BotFather (`/setinline`).
+
+## Analytics
+
+Umami is self-hosted (`--profile analytics`, <http://localhost:3000>; sign in with Umami's
+default admin account from its documentation and change the password). Add the site in its dashboard and put the website id into
+`VITE_UMAMI_WEBSITE_ID`. The app loads the tracker only after the person allows it in the
+consent banner; the choice can be changed in settings. Without `VITE_UMAMI_SCRIPT_URL` and
+`VITE_UMAMI_WEBSITE_ID` there is no banner and no tracker. For the production image pass
+them as build arguments; CI takes them from the `UMAMI_SCRIPT_URL` and `UMAMI_WEBSITE_ID`
+repository variables.
+
 ## Run locally
 
 Backend:
@@ -101,4 +133,5 @@ npm run dev
 ```sh
 cd frontend && npm run lint && npm run build
 cd backend && pytest && ruff check .
+cd bot && pytest && ruff check .   # TEST_DATABASE_URL=postgresql://... adds the Postgres test
 ```

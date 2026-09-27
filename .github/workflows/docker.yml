@@ -10,15 +10,15 @@ permissions:
   packages: write
 
 jobs:
-  # Монорепозиторий собирает два независимых образа. Сборка у них отличается
-  # только каталогом, поэтому это матрица, а не два скопированных блока.
+  # Монорепозиторий собирает три независимых образа. Сборка у них отличается
+  # только каталогом, поэтому это матрица, а не скопированные блоки.
   # target не указан: в обоих Dockerfile production — последняя стадия.
   docker:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        service: [backend, frontend]
+        service: [backend, frontend, bot]
 
     steps:
       - uses: actions/checkout@v4
@@ -50,6 +50,11 @@ jobs:
           context: ${{ matrix.service }}
           file: ${{ matrix.service }}/Dockerfile
           push: true
+          # Нужны только фронтенду: Vite вшивает их в сборку. Переменные
+          # репозитория (Settings → Variables); пустые — аналитика выключена.
+          build-args: |
+            VITE_UMAMI_SCRIPT_URL=${{ vars.UMAMI_SCRIPT_URL }}
+            VITE_UMAMI_WEBSITE_ID=${{ vars.UMAMI_WEBSITE_ID }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.service }}

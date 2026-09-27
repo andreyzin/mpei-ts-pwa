@@ -15,18 +15,26 @@ cd frontend && npm install && npm run dev      # Vite, host 0.0.0.0
 npm run lint && npm run build                  # build = tsc -b && vite build
 npm run format:check                           # prettier
 
+# Необязательные сервисы: бот (+ postgres), Umami (+ postgres)
+docker compose --profile bot --profile analytics up --build
+
 # Backend
 cd backend && pip install -r requirements-dev.txt
 uvicorn app.main:app --reload
 pytest && ruff check .
 pytest tests/test_main.py::test_health         # один тест
+
+# Bot
+cd bot && pip install -r requirements-dev.txt
+pytest && ruff check .                         # TEST_DATABASE_URL включает тест на Postgres
+python -m app.main                             # нужен TELEGRAM_BOT_TOKEN
 ```
 
 Фронтенд использует **npm** (`package-lock.json`, `npm install` в `frontend/Dockerfile`) — не переключай на pnpm без явной просьбы. У фронтенда сейчас нет тест-раннера; если задача требует тестов на клиенте, сначала согласуй добавление vitest.
 
 ## Архитектура
 
-Монорепозиторий из двух независимых приложений, связанных только HTTP: Vite-dev-server проксирует `/api/*` на backend (`VITE_API_PROXY_TARGET`, по умолчанию `http://127.0.0.1:8000`).
+Монорепозиторий из трёх независимых приложений, связанных только HTTP: Vite-dev-server проксирует `/api/*` на backend (`VITE_API_PROXY_TARGET`, по умолчанию `http://127.0.0.1:8000`), Telegram-бот ходит в тот же backend API. Правила кода бэкенда (`backend/AGENTS.md`) действуют и для `bot/`.
 
 ### Backend: обёртка над МЭИ РУЗ
 
@@ -41,7 +49,7 @@ pytest tests/test_main.py::test_health         # один тест
 - **Типы и статусы пар нормализуются** в `LessonType`/`LessonStatus` по вхождению подстроки (русские названия РУЗ), исходная строка сохраняется в `raw_type`.
 - `MemoryCache` и `RateLimiter` — процессные синглтоны на уровне модуля `public.py`. Это осознанно (одна реплика); при масштабировании нужен внешний стор.
 - Ошибки upstream превращаются в `502 Schedule provider unavailable`; наружу не уходят детали РУЗ. Диапазон дат ограничен 0..31 днём.
-- Настройки — только через `Settings` (`app/config.py`, `get_settings()` с `lru_cache`), не через `os.environ` по коду.
+- Настройки — только через `Settings` (`app/config.py`, pydantic-settings, `get_settings()` с `lru_cache`), не через `os.environ` по коду. Поля читаются из одноимённых переменных окружения.
 - `SchedulePeriod` сериализуется с алиасом `from` (`by_alias=True` в сервисе) — ключ в JSON именно `from`, не `from_`.
 
 ### Frontend: offline-first PWA
@@ -73,6 +81,14 @@ pytest tests/test_main.py::test_health         # один тест
 `DayTrack` (`src/components/schedule/DayTrack.tsx`) — мобильная лента дней: предыдущий/текущий/следующий день лежат в DOM рядом, `drag="x"` тянет полотно, отпускание снапит по расстоянию или скорости. Смена даты извне (стрелки, полоса дат, date picker) проходит через тот же трек, поэтому едет так же, как свайп. Ключевой момент: смещение `x` и новая дата должны применяться в одном кадре — за это отвечает `moveTrackTo` с `flushSync`, иначе панели один раз отрисуются не на своём месте.
 
 Всё движение обязано уважать `useReducedMotion`; глобальный `@media (prefers-reduced-motion: reduce)` в `index.css` гасит CSS-переходы, но JS-анимации motion нужно отключать явно.
+
+### Bot: Telegram, инлайн-режим
+
+`bot/` — отдельный сервис на aiogram. Никогда не ходит в РУЗ: только в наш backend (`app/schedule_api.py`) с `X-Internal-Token`, иначе общий лимит на адрес его заблокирует. Выбранная группа пользователя — в Postgres (`app/storage.py`, таблица создаётся при старте, миграций пока нет). Решения вынесены из хендлеров в чистые модули: `inline.py` (что показать на `@bot`), `group_choice.py` (имя → группа), `texts.py` (HTML сообщений); `handlers.py` только связывает их с aiogram. Режим: webhook, только если `WEBHOOK_BASE_URL` начинается с `https://` (тогда обязателен `WEBHOOK_SECRET`), иначе long polling.
+
+### Предложения и аналитика
+
+`POST /api/v1/suggestions` пересылает текст в Telegram-чат `SUGGESTIONS_CHAT_ID` тем же ботом (backend вызывает Bot API сам, без сервиса бота). Umami грузится на клиенте только после согласия (`analyticsConsent` в `localDataStore`, `src/lib/analytics.ts`); без `VITE_UMAMI_*` нет ни баннера, ни трекера.
 
 ## Текущая работа
 
