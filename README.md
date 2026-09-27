@@ -16,6 +16,12 @@ Open <http://localhost:5173>. The frontend proxies `/api/*` requests to the back
 ## Public API
 
 Search groups, teachers, and rooms with `GET /api/v1/search?type=group|teacher|room&q=...`.
+For groups, Latin letters in `q` are read as Cyrillic: `A-06m-26` finds `А-06м-26`
+(`app/services/group_name.py` holds the letter map; `e` is `э`).
+
+Find one group by its exact name with `GET /api/v1/groups/lookup?name=A-06m-26`. It returns
+a search item, or `404` when no group has that name.
+
 Fetch a normalized schedule for an inclusive date range with:
 
 ```text
@@ -26,6 +32,38 @@ GET /api/v1/rooms/{id}/schedule?from=YYYY-MM-DD&to=YYYY-MM-DD
 
 The backend owns the upstream RUZ integration, normalization, caching, and rate limiting;
 clients should not call `ts.mpei.ru` directly.
+
+## Share links
+
+`/<group>` and `/<group>/<date>` open a group's schedule on a day, e.g. `/А-06м-26/2-9`.
+The group may be spelled in Latin (`/A-06m-26`). The date is `d-m`, `d-m-yy` or `d-m-yyyy`
+(`2-9`, `02-09-26` and `02-09-2026` are all 2 September); without a year it is the current
+one, without a date it is today in Moscow.
+
+Messengers do not run the app, so these paths go to the backend as `/share/<group>/<date>`.
+It answers with an HTML page whose Open Graph title is the group and the day, whose
+description lists that day's lessons and whose image is
+`GET /api/v1/share/<group>/<dd-mm-yyyy>.png`, a 1200×630 picture of the day. Then it sends
+people on to `/?group=<id>&date=<dd-mm-yyyy>`. An unknown group or an invalid date is `404`,
+an unavailable RUZ is `502`.
+
+`og:image` must be an absolute URL, so the backend takes the host from `X-Forwarded-Host`
+(or `Host`) and the scheme from `X-Forwarded-Proto`. The picture uses Golos Text, bundled in
+`backend/app/assets/fonts` under the SIL Open Font License.
+
+The Vite dev server proxies them already. In production the proxy in front of the frontend
+needs the same rule; with nginx:
+
+```nginx
+location ~ "^/[^/.@_]*[0-9][^/.]*(/[^/.]+)?$" {
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_pass http://backend:8000/share$request_uri;
+}
+```
+
+The installed PWA opens these links itself: its service worker serves the app, which reads
+the path and resolves the group with `/api/v1/groups/lookup`.
 
 ## Run locally
 

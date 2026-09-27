@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date
 from typing import Annotated
 
@@ -8,8 +9,10 @@ from app.infrastructure.cache import MemoryCache
 from app.infrastructure.http import http_client
 from app.infrastructure.rate_limit import RateLimiter
 from app.providers.mpei_ruz.client import MpeiRuzClient, RuzUpstreamError
-from app.schemas.common import EntityType, ScheduleResponse, SearchResponse
+from app.schemas.common import EntityType, ScheduleResponse, SearchItem, SearchResponse
 from app.services.public_service import PublicScheduleService
+from app.services.share_image import render_day_image
+from app.services.share_preview import SharePreviewNotFound, load_shared_day, moscow_today
 
 router = APIRouter()
 cache = MemoryCache()
@@ -49,6 +52,50 @@ async def search(
         return await service.search(type, q.strip(), limit, offset)
     except RuzUpstreamError as error:
         raise HTTPException(status_code=502, detail="Schedule provider unavailable") from error
+
+
+@router.get("/groups/lookup", response_model=SearchItem)
+async def group_lookup(
+    request: Request,
+    response: Response,
+    service: Service,
+    name: str = Query(..., min_length=1, max_length=100),
+) -> SearchItem:
+    """Exact group by name; a Latin spelling (`A-06m-26`) is read as Cyrillic."""
+    check_limit(request, response)
+    try:
+        group = await service.find_group(name)
+    except RuzUpstreamError as error:
+        raise HTTPException(status_code=502, detail="Schedule provider unavailable") from error
+    if group is None:
+        raise HTTPException(status_code=404, detail="Group not found")
+    return group
+
+
+@router.get(
+    "/share/{group}/{day}.png",
+    response_class=Response,
+    responses={200: {"content": {"image/png": {}}}},
+)
+async def share_image(
+    group: str, day: str, request: Request, response: Response, service: Service
+) -> Response:
+    """1200×630 picture of a group's day for Open Graph; `day` is `d-m[-yy[yy]]`."""
+    check_limit(request, response)
+    today = moscow_today()
+    try:
+        shared = await load_shared_day(service, group, day, today)
+    except SharePreviewNotFound as error:
+        raise HTTPException(status_code=404, detail="Group or date not found") from error
+    except RuzUpstreamError as error:
+        raise HTTPException(status_code=502, detail="Schedule provider unavailable") from error
+    # Drawing is CPU work; keep it off the event loop.
+    png = await asyncio.to_thread(render_day_image, shared, today)
+    return Response(
+        png,
+        media_type="image/png",
+        headers={"Cache-Control": f"public, max-age={get_settings().cache_ttl_seconds}"},
+    )
 
 
 async def _schedule(

@@ -9,6 +9,7 @@ import { addDays, mondayOf, todayIso } from './domain/weekMath'
 import { formatDateRange } from './domain/dateFormat'
 import type { ScheduleTarget, SubjectRoomExclusion } from './domain/models'
 import type { ScheduleLesson } from './api/schedule'
+import { lookupGroup } from './api/search'
 import { fadeTransition, screenFadeVariants, screenVariants } from './lib/motion'
 import { OfflineBanner } from './components/OfflineBanner'
 import { BottomNav, type Screen } from './components/BottomNav'
@@ -24,7 +25,7 @@ export default function App() {
   const [group, setGroup] = useState<ScheduleTarget | null>(null)
   const [online, setOnline] = useState(navigator.onLine)
   const [selectedDate, setSelectedDate] = useState(
-    () => readScheduleUrl(window.location.search).date ?? todayIso(),
+    () => readScheduleUrl(window.location).date ?? todayIso(),
   )
   const [excludedSubjects, setExcludedSubjects] = useState<string[]>([])
   const [excludedSubjectRooms, setExcludedSubjectRooms] = useState<SubjectRoomExclusion[]>([])
@@ -63,23 +64,34 @@ export default function App() {
   )
 
   useEffect(() => {
-    localDataStore.getPreferences().then((preferences) => {
-      const fromUrl = readScheduleUrl(window.location.search).target
-      setGroup(
-        fromUrl
-          ? { ...fromUrl, name: preferences.group?.name ?? 'Выбранное расписание' }
-          : preferences.group,
-      )
-      setExcludedSubjects(preferences.excludedSubjectIds)
-      setExcludedSubjectRooms(preferences.excludedSubjectRooms)
-      document.documentElement.dataset.theme = preferences.theme
-    })
+    const fromUrl = readScheduleUrl(window.location)
+    const sharedGroupLookup = new AbortController()
+    localDataStore
+      .getPreferences()
+      .then((preferences) => {
+        setGroup(
+          fromUrl.target
+            ? { ...fromUrl.target, name: preferences.group?.name ?? 'Выбранное расписание' }
+            : preferences.group,
+        )
+        setExcludedSubjects(preferences.excludedSubjectIds)
+        setExcludedSubjectRooms(preferences.excludedSubjectRooms)
+        document.documentElement.dataset.theme = preferences.theme
+        // Resolved after the saved group is shown: an unknown name or no network
+        // leaves the user on their own schedule rather than an empty one.
+        if (!fromUrl.groupName) return null
+        return lookupGroup(fromUrl.groupName, sharedGroupLookup.signal).catch(() => null)
+      })
+      .then((shared) => {
+        if (shared) setGroup({ id: shared.id, name: shared.name, type: 'group' })
+      })
 
     const onlineHandler = () => setOnline(true)
     const offlineHandler = () => setOnline(false)
     addEventListener('online', onlineHandler)
     addEventListener('offline', offlineHandler)
     return () => {
+      sharedGroupLookup.abort()
       removeEventListener('online', onlineHandler)
       removeEventListener('offline', offlineHandler)
     }
