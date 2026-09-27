@@ -9,6 +9,7 @@ import { Button } from './ui/Button'
 import { Panel } from './ui/Panel'
 import { DataTransferDialog } from './DataTransferDialog'
 import { SuggestFeatureSheet } from './SuggestFeatureSheet'
+import { AnalyticsSettings } from './AnalyticsSettings'
 
 export function SettingsScreen({
   group,
@@ -78,6 +79,7 @@ export function SettingsScreen({
           </Button>
         </div>
       </Panel>
+      <AnalyticsSettings />
       <Panel className="mt-4 grid max-w-lg gap-3">
         <div>
           <strong>Предложения</strong>

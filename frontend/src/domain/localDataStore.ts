@@ -1,4 +1,5 @@
 import type {
+  AnalyticsConsent,
   LessonNote,
   LocalDataSnapshot,
   ScheduleTarget,
@@ -15,6 +16,7 @@ export interface LocalDataStore {
   setGroup(group: ScheduleTarget | null): Promise<void>
   setExcludedSubjects(subjectIds: string[]): Promise<void>
   setExcludedSubjectRooms(exclusions: SubjectRoomExclusion[]): Promise<void>
+  setAnalyticsConsent(consent: AnalyticsConsent): Promise<void>
   getNote(lessonId: string): Promise<LessonNote | null>
   getSubjectNote(subjectId: string): Promise<LessonNote | null>
   deleteSubjectNote(subjectId: string): Promise<void>
@@ -26,6 +28,8 @@ export interface LocalDataStore {
   importSnapshot(snapshot: LocalDataSnapshot): Promise<void>
 }
 
+// analyticsConsent was added without a version bump: read() fills a missing
+// preference from `empty`, so v1 data is already in the current shape.
 const KEY = 'mpei-schedule:local-data:v1'
 const empty: LocalDataSnapshot = {
   preferences: {
@@ -33,6 +37,7 @@ const empty: LocalDataSnapshot = {
     excludedSubjectIds: [],
     excludedSubjectRooms: [],
     theme: 'system',
+    analyticsConsent: null,
   },
   notes: [],
 }
@@ -96,6 +101,11 @@ export class LocalStorageDataStore implements LocalDataStore {
   async setExcludedSubjectRooms(exclusions: SubjectRoomExclusion[]) {
     const data = this.read()
     data.preferences.excludedSubjectRooms = exclusions
+    this.write(data)
+  }
+  async setAnalyticsConsent(consent: AnalyticsConsent) {
+    const data = this.read()
+    data.preferences.analyticsConsent = consent
     this.write(data)
   }
   async getNote(lessonId: string) {
@@ -165,6 +175,8 @@ export class LocalStorageDataStore implements LocalDataStore {
         ...snapshot.preferences,
         excludedSubjectIds: snapshot.preferences.excludedSubjectIds ?? [],
         excludedSubjectRooms: snapshot.preferences.excludedSubjectRooms ?? [],
+        // Consent is given on this device; a file from another one must not change it.
+        analyticsConsent: this.read().preferences.analyticsConsent,
       },
       notes: snapshot.notes.map((note) => ({
         ...note,

@@ -20,6 +20,9 @@ import { HighlightsPage } from './pages/HighlightsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { InstallPwaButton } from './components/InstallPwaButton'
 import { useIsMobile } from './hooks/useIsMobile'
+import { useAnalyticsConsent } from './hooks/useAnalyticsConsent'
+import { analyticsConfigured, loadAnalytics } from './lib/analytics'
+import { AnalyticsConsentBanner } from './components/AnalyticsConsentBanner'
 
 export default function App() {
   const [group, setGroup] = useState<ScheduleTarget | null>(null)
@@ -35,6 +38,7 @@ export default function App() {
   const urlInitialized = useRef(false)
   const prefersReducedMotion = useReducedMotion()
   const isMobile = useIsMobile()
+  const analyticsConsent = useAnalyticsConsent()
 
   // The strip follows the scroller frame by frame; the committed date drives
   // the URL and the loaded weeks, and only moves once scrolling has stopped.
@@ -96,6 +100,10 @@ export default function App() {
       removeEventListener('offline', offlineHandler)
     }
   }, [])
+
+  useEffect(() => {
+    if (analyticsConsent === 'granted') loadAnalytics()
+  }, [analyticsConsent])
 
   // Skip the first run so a shared link is not rewritten before preferences load.
   useEffect(() => {
@@ -230,6 +238,7 @@ export default function App() {
         </motion.div>
       </AnimatePresence>
 
+      {analyticsConfigured && analyticsConsent === null && <AnalyticsConsentBanner />}
       <BottomNav active={screen} onChange={setScreen} />
 
       <AnimatePresence>

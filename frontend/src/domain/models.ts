@@ -2,11 +2,15 @@ export type EntityRef = { id: number; name: string }
 export type ScheduleTargetType = 'group' | 'teacher' | 'room'
 export type ScheduleTarget = EntityRef & { type: ScheduleTargetType }
 
+export type AnalyticsConsent = 'granted' | 'denied'
+
 export type UserPreferences = {
   group: ScheduleTarget | null
   excludedSubjectIds: string[]
   excludedSubjectRooms: SubjectRoomExclusion[]
   theme: 'system' | 'light' | 'dark'
+  /** null until the person answers the consent banner. */
+  analyticsConsent: AnalyticsConsent | null
 }
 
 export type SubjectRoomExclusion = {
