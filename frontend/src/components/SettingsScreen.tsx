@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
-import { Download, Upload } from 'lucide-react'
+import { Download, Lightbulb, Upload } from 'lucide-react'
 import type { ScheduleTarget } from '../domain/models'
 import { localDataStore } from '../domain/localDataStore'
 import { exportLocalData } from '../domain/dataTransfer'
@@ -8,6 +8,7 @@ import { GroupPicker } from './GroupPicker'
 import { Button } from './ui/Button'
 import { Panel } from './ui/Panel'
 import { DataTransferDialog } from './DataTransferDialog'
+import { SuggestFeatureSheet } from './SuggestFeatureSheet'
 
 export function SettingsScreen({
   group,
@@ -19,6 +20,7 @@ export function SettingsScreen({
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system')
   const [deleteConfirmation, setDeleteConfirmation] = useState(false)
   const [isImportOpen, setIsImportOpen] = useState(false)
+  const [isSuggestOpen, setIsSuggestOpen] = useState(false)
   useEffect(() => {
     localDataStore.getPreferences().then((preferences) => setTheme(preferences.theme))
   }, [])
@@ -76,6 +78,23 @@ export function SettingsScreen({
           </Button>
         </div>
       </Panel>
+      <Panel className="mt-4 grid max-w-lg gap-3">
+        <div>
+          <strong>Предложения</strong>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            Расскажите, что добавить или изменить в приложении.
+          </p>
+        </div>
+        <div>
+          <Button onClick={() => setIsSuggestOpen(true)}>
+            <Lightbulb size={16} />
+            Предложить фичу
+          </Button>
+        </div>
+      </Panel>
+      <AnimatePresence>
+        {isSuggestOpen && <SuggestFeatureSheet onClose={() => setIsSuggestOpen(false)} />}
+      </AnimatePresence>
       <AnimatePresence>
         {isImportOpen && (
           <DataTransferDialog
