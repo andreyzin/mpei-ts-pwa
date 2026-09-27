@@ -38,6 +38,8 @@ when Telegram does not accept the message.
 
 The backend reads its settings from environment variables named like the fields of
 `app/config.py` (`RUZ_BASE_URL`, `CACHE_TTL_SECONDS`, `RATE_LIMIT_PER_MINUTE`, ...).
+Requests with `X-Internal-Token: $INTERNAL_API_TOKEN` skip the per-address rate limit; the
+Telegram bot uses it, because one bot address stands for all of its users.
 
 The backend owns the upstream RUZ integration, normalization, caching, and rate limiting;
 clients should not call `ts.mpei.ru` directly.

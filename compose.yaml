@@ -25,6 +25,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       SUGGESTIONS_CHAT_ID: ${SUGGESTIONS_CHAT_ID:-}
       TELEGRAM_API_BASE: ${TELEGRAM_API_BASE:-https://api.telegram.org}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
     volumes:
       - ./backend:/app
     healthcheck:

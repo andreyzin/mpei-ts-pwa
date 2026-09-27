@@ -1,4 +1,5 @@
 import asyncio
+import secrets
 from datetime import date
 from typing import Annotated
 
@@ -28,7 +29,17 @@ async def service() -> PublicScheduleService:
 Service = Annotated[PublicScheduleService, Depends(service)]
 
 
+def _is_internal(request: Request) -> bool:
+    expected = get_settings().internal_api_token
+    presented = request.headers.get("x-internal-token")
+    if expected is None or presented is None:
+        return False
+    return secrets.compare_digest(presented.encode(), expected.get_secret_value().encode())
+
+
 def check_limit(request: Request, response: Response) -> None:
+    if _is_internal(request):
+        return
     allowed, retry_after = limiter.allow(
         f"{request.client.host if request.client else 'unknown'}:{request.url.path}"
     )
